@@ -52,6 +52,19 @@ class Queue {
     }
   }
 
+  get(id: string): QueueItem | undefined {
+    for (const item of this.syncQueue) {
+        if (item.caseObj.id == id) {
+            return item;
+        }
+    }
+        for (const item of this.asyncQueue) {
+        if (item.caseObj.id == id) {
+            return item;
+        }
+    }
+  }
+
   clear(category: QueueCategory): void {
     if (category === "sync") {
       this.syncQueue = [];

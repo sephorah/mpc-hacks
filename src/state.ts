@@ -1,3 +1,4 @@
+import { NextApiRequest } from "next";
 import { Case, Patient } from "./types";
 
 
@@ -6,7 +7,7 @@ export class State {
     cases: Map<string, Case>
     constructor() {
         this.patients = new Map();
-        this.cases = new Case();
+        this.cases = new Map();
     }
 }
 

@@ -5,7 +5,6 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
-
     const { id: string } = req.query;
 
     const caseObj = queue.get(id);
@@ -16,5 +15,4 @@ export default async function handler(
     }
 
     res.status(200).json({ success: true, data: caseObj });
-
 }

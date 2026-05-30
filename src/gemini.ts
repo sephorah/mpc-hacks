@@ -1,4 +1,4 @@
-import { Case, CaseType, Lane } from "../types";
+import { Case, CaseType, Lane } from "@/types";
 
 const GEMINI_MODEL = "gemini-1.5-flash";
 
