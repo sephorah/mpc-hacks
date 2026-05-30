@@ -1,21 +1,21 @@
-export type CaseType = 'renewal' | 'lab-followup';
+@ -0,0 +1,20 @@
+export type CaseType = 'med-renewal' | 'lab-followup' | 'chronic-condition-check-in';
 
 export type Lane =
-  | 'needs-sync'     // red flag / rules → live visit required, leaves our path
-  | 'async-pending'  // closeable async, but missing something (lab, etc.)
-  | 'async-ready';   // closeable async, nothing missing → provider can close
-
-export type Status = 'open' | 'closed';
+  | 'needs-sync'     // red flag → live visit, leaves our path
+  | 'async-pending'  // closeable async, missing something
+  | 'async-ready';   // closeable async, nothing missing → close
 
 export type Case = {
   id: string;
   type: CaseType;
   lane: Lane;
-  redFlags: boolean;       // did any deterministic red-flag question trip
-  missing: string | null;  // what's blocking close, e.g. "lab result"; null when ready
-  freeText: string;        // the one field the LLM digests
-  packet: string | null;   // LLM-generated decision packet; null until provider opens
-  status: Status;
+  answers: Record<string, boolean>; 
+  redFlags: boolean;
+  missing: string | null;   // what's blocking an async close e.g. "lab result"; null when ready
+  freeText: string;         // LLM digests this
+  packet: string | null;    // LLM summary ; null until provider opens 
+  status: 'open' | 'closed';
   createdAt: number;
   closedAt: number | null;
 };

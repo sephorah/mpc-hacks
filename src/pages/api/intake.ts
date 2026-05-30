@@ -3,6 +3,10 @@ import { getPatientFromReq } from "../../state";
 import { Case } from "../../types"
 import { randomUUID } from "crypto";
 
+import { GoogleGenAI } from "@google/genai";
+
+const ai = new GoogleGenAI({});
+
 interface IntakeFormData {
   // TODO: Define form fields as they're added
   [key: string]: unknown;
@@ -14,7 +18,7 @@ interface ApiResponse {
   data?: unknown;
 }
 
-export default function handler(
+export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<ApiResponse>
 ) {
@@ -31,17 +35,22 @@ export default function handler(
 
   // TODO: Validate form data
   // TODO: Process form data
-  // TODO: Store/persist data as needed
+  // TODO: Create and store/persist case to db
+
+  const response = await ai.models.generateContent({
+    model: "gemini-3.5-flash",
+    contents: "Explain how AI works in a few words",
+  });
 
   // Create case and return its id
-  const newCase: Case = {
-    id: randomUUID(),
-    
-  };
+//   const newCase: Case = {
+//     id: randomUUID(),
+
+//   };
 
   return res.status(200).json({
     success: true,
     message: "Form submitted successfully, case created",
-    data: { patientId: patient.id, caseId: newCase.id },
+    data: { patientId: patient.id },
   });
 }

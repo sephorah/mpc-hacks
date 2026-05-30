@@ -1,6 +1,9 @@
 import { createServer } from "node:http";
 import next from "next";
 import { State } from "./state";
+import { loadEnvFile } from 'node:process';
+
+loadEnvFile(); // Automatically reads './.env'
 
 declare global {
     var state: State;
