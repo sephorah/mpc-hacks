@@ -1,11 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getPatientFromReq } from "../../state";
-import { Case } from "../../types"
-import { randomUUID } from "crypto";
-
-import { GoogleGenAI } from "@google/genai";
-
-const ai = new GoogleGenAI({apiKey: process.env.GEMINI_API_KEY});
+import { convertFormToCase } from "../../gemini";
+import { queue, type QueueCategory } from "../../queue";
 
 interface IntakeFormData {
   // TODO: Define form fields as they're added
@@ -33,29 +29,45 @@ export default async function handler(
 
   const formData: IntakeFormData = req.body;
 
-  // TODO: Validate form data
-  // TODO: Process form data
-  // TODO: Create and store/persist case to db
+  try {
+    // Convert form data to structured case object using Gemini
+    const caseObj = await convertFormToCase(formData, patient.id);
 
-  const response = await ai.models.generateContent({
-    model: "gemini-3.5-flash",
-    contents: 
-`Format the given patient intake request into the following JSON format. You should only output JSON.\n
-{
-    
-}
-`
-  });
+    // Missing info, send back to user
+    if (caseObj.lane == 'async-pending') {
+        res.status(400).json(
+            {
+                success: false,
+                message: "Async case is missing required information. Please revise and try again",
+                data: {
+                    missing: caseObj.missing
+                }
+            }
+        );
+        return;
+    }
 
-  // Create case and return its id
-//   const newCase: Case = {
-//     id: randomUUID(),
+    // Determine queue category based on case lane
+    const queueCategory: QueueCategory = caseObj.lane === "needs-sync" ? "sync" : "async";
 
-//   };
+    // Enqueue the case
+    queue.enqueue(caseObj, queueCategory);
 
-  return res.status(200).json({
-    success: true,
-    message: "Form submitted successfully, case created",
-    data: { patientId: patient.id },
-  });
+    return res.status(200).json({
+      success: true,
+      message: "Form submitted successfully",
+      data: {
+        patientId: patient.id,
+        caseId: caseObj.id,
+        lane: caseObj.lane,
+        queue: queueCategory,
+      },
+    });
+  } catch (error) {
+    console.error("Error processing intake form:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Error processing form submission",
+    });
+  }
 }
