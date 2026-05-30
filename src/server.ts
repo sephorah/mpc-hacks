@@ -1,23 +1,9 @@
 import { createServer } from "node:http";
 import next from "next";
-import { State } from "./state";
+import { initState } from "./state";
 import { loadEnvFile } from 'node:process';
 
 loadEnvFile(".env.local"); // Automatically reads './.env'
-
-declare global {
-    var state: State;
-}
-
-function initState() {
-    global.state = new State();
-}
-
-initState();
-
-export function getState() {
-    return global.state;
-}
 
 process.env.NEXT_RUNTIME = 'nodejs';
 
@@ -28,6 +14,8 @@ app.prepare().then(() => {
     const server = createServer(async (req, res) => {
         await handler(req, res);
     });
+
+    initState();
 
     server.listen(3000, () => {
         console.log('Server running on port 3000.');

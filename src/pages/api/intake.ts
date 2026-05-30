@@ -1,11 +1,11 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getPatientFromReq } from "../../state";
+import { getPatientFromReq, getState } from "../../state";
 import { convertFormToCase } from "../../gemini";
-import { queue, type QueueCategory } from "../../queue";
+import { type QueueCategory } from "../../queue";
 
-interface IntakeFormData {
+interface IntakeFormData extends Record<string, string> {
   // TODO: Define form fields as they're added
-  [key: string]: unknown;
+  whatswrong: string
 }
 
 interface ApiResponse {
@@ -51,7 +51,7 @@ export default async function handler(
     const queueCategory: QueueCategory = caseObj.lane === "needs-sync" ? "sync" : "async";
 
     // Enqueue the case
-    queue.enqueue(caseObj, queueCategory);
+    getState().queue.enqueue(caseObj, queueCategory);
 
     return res.status(200).json({
       success: true,

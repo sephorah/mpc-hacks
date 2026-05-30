@@ -20,7 +20,7 @@ export type Case = {
   closedAt: number | null;
 };
 
-export type Patient {
+export type Patient = {
     id: string;
     createdAt: string;
 };

@@ -1,4 +1,9 @@
 import { Case, CaseType, Lane } from "@/types";
+import {
+  GoogleGenAI,
+  ThinkingLevel,
+} from '@google/genai';
+
 
 const GEMINI_MODEL = "gemini-1.5-flash";
 
@@ -11,7 +16,7 @@ interface GeminiResponse {
 }
 
 export async function convertFormToCase(
-  formData: Record<string, unknown>,
+  formData: Record<string, string>,
   patientId: string
 ): Promise<Case> {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -21,26 +26,43 @@ export async function convertFormToCase(
 
   const prompt = buildPrompt(formData);
 
-  const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + GEMINI_MODEL + ":generateContent", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-goog-api-key": apiKey,
-    },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: {
-        temperature: 0.7,
-      },
-    }),
+  const ai = new GoogleGenAI({
+    apiKey: process.env['GEMINI_API_KEY'],
   });
+  const config = {
+    thinkingConfig: {
+      thinkingLevel: ThinkingLevel.MEDIUM,
+    },
+  };
+  const model = 'gemini-3.5-flash';
+  const contents = [
+    {
+      role: 'user',
+      parts: [
+        {
+          text: prompt
+        },
+      ],
+    },
+  ];
 
-  if (!response.ok) {
-    throw new Error(`Gemini API error: ${response.statusText}`);
+  const response = await ai.models.generateContentStream({
+    model,
+    config,
+    contents,
+  });
+  
+  let fileIndex = 0;
+  let content = "";
+  for await (const chunk of response) {
+    if (chunk.text) {
+      console.log(chunk.text);
+      content += chunk.text;
+    }
   }
 
-  const data = await response.json();
-  const content = data.contents?.[0]?.parts?.[0]?.text;
+  // const data = JSON.parse(text);
+  // const content = data?.contents?.[0]?.parts?.[0]?.text;
 
   if (!content) {
     throw new Error("No content returned from Gemini");
@@ -62,7 +84,7 @@ export async function convertFormToCase(
   };
 }
 
-function buildPrompt(formData: Record<string, unknown>): string {
+function buildPrompt(formData: Record<string, string>): string {
   const formDataStr = JSON.stringify(formData, null, 2);
 
   return `You are a medical case triage system. Analyze the patient intake form data and generate a structured case object.

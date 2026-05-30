@@ -1,13 +1,27 @@
 import { NextApiRequest } from "next";
 import { Case, Patient } from "./types";
+import { Queue } from "./queue";
 
+declare global {
+    var state: State;
+}
+
+export function initState() {
+    global.state = new State();
+}
+
+export function getState() {
+    return global.state;
+}
 
 export class State {
     patients: Map<string, Patient> 
     cases: Map<string, Case>
+    queue: Queue
     constructor() {
         this.patients = new Map();
         this.cases = new Map();
+        this.queue = new Queue();
     }
 }
 

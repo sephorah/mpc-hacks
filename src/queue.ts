@@ -7,7 +7,7 @@ interface QueueItem {
   addedAt: number;
 }
 
-class Queue {
+export class Queue {
   private syncQueue: QueueItem[] = [];
   private asyncQueue: QueueItem[] = [];
 
@@ -65,6 +65,10 @@ class Queue {
     }
   }
 
+  close(item: QueueItem) {
+    throw "Unimplemented";
+  }
+
   clear(category: QueueCategory): void {
     if (category === "sync") {
       this.syncQueue = [];
@@ -73,5 +77,3 @@ class Queue {
     }
   }
 }
-
-export const queue = new Queue();

@@ -1,4 +1,4 @@
-import { queue } from "@/queue";
+import { getState } from "@/state";
 import type { NextApiRequest, NextApiResponse } from "next";
 
 export default async function handler(
@@ -6,8 +6,8 @@ export default async function handler(
   res: NextApiResponse
 )
 {
-    const sync_cases = queue.getAll("sync");
-    const async_cases = queue.getAll("async");
+    const sync_cases = getState().queue.getAll("sync");
+    const async_cases = getState().queue.getAll("async");
 
     res.status(200).json({
         success: true,
