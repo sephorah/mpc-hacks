@@ -3,7 +3,7 @@ import next from "next";
 import { State } from "./state";
 import { loadEnvFile } from 'node:process';
 
-loadEnvFile(); // Automatically reads './.env'
+loadEnvFile(".env.local"); // Automatically reads './.env'
 
 declare global {
     var state: State;

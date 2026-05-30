@@ -1,5 +1,6 @@
 @ -0,0 +1,20 @@
-export type CaseType = 'med-renewal' | 'lab-followup' | 'chronic-condition-check-in';
+export type CaseType = 'general-enquiry' |'med-renewal' | 'lab-followup' | 'chronic-condition-check-in';
+export const PossibleCaseTypes = ['general-enquiry', 'med-renewal', 'lab-followup', 'chronic-condition-check-in'] as const;
 
 export type Lane =
   | 'needs-sync'     // red flag → live visit, leaves our path

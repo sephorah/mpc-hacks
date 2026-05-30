@@ -5,7 +5,7 @@ import { randomUUID } from "crypto";
 
 import { GoogleGenAI } from "@google/genai";
 
-const ai = new GoogleGenAI({});
+const ai = new GoogleGenAI({apiKey: process.env.GEMINI_API_KEY});
 
 interface IntakeFormData {
   // TODO: Define form fields as they're added
@@ -39,7 +39,12 @@ export default async function handler(
 
   const response = await ai.models.generateContent({
     model: "gemini-3.5-flash",
-    contents: "Explain how AI works in a few words",
+    contents: 
+`Format the given patient intake request into the following JSON format. You should only output JSON.\n
+{
+    
+}
+`
   });
 
   // Create case and return its id
