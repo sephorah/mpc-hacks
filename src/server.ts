@@ -10,6 +10,8 @@ function initState() {
     global.state = new State();
 }
 
+initState();
+
 export function getState() {
     return global.state;
 }
@@ -23,8 +25,6 @@ app.prepare().then(() => {
     const server = createServer(async (req, res) => {
         await handler(req, res);
     });
-
-    initState();
 
     server.listen(3000, () => {
         console.log('Server running on port 3000.');
