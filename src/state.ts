@@ -1,14 +1,12 @@
-import { Patient } from "./types";
+import { Case, Patient } from "./types";
 
-export type Patient {
-    id: string;
-    createdAt: string;
-};
 
 export class State {
     patients: Map<string, Patient> 
+    cases: Map<string, Case>
     constructor() {
         this.patients = new Map();
+        this.cases = new Case();
     }
 }
 
