@@ -16,8 +16,9 @@ export type Case = {
   redFlags: boolean;
   missing: string | null; // what's blocking an async close e.g. "lab result"; null when ready
   freeText: string; // LLM digests this
-  packet: string | null; // LLM summary ; null until provider opens
-  status: "open" | "closed";
+  packet: string | null; // LLM summary; null until provider opens
+  status: "open" | "closed" | "escalated";
   createdAt: number;
   closedAt: number | null;
+  escalatedAt: number | null;
 };
