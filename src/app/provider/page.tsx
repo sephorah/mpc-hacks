@@ -176,7 +176,12 @@ export default function ProviderWorkspace() {
     setCases((prev) =>
       prev.map((x) =>
         x.id === id
-          ? { ...x, lane: "async-pending" as const, missing: message }
+          ? {
+              ...x,
+              lane: "async-pending" as const,
+              missing: message,
+              packet: null,
+            }
           : x,
       ),
     );
@@ -282,6 +287,7 @@ export default function ProviderWorkspace() {
             <div className="empty">Select a case from the queue</div>
           ) : (
             <CaseDetail
+              key={selected.id}
               c={selected}
               generating={generatingId === selected.id}
               attested={attested}
@@ -328,7 +334,26 @@ function ActionButtons({
 }) {
   return (
     <>
-      {showRequestForm ? (
+      {!showRequestForm && !showEscalateConfirm && (
+        <div style={{ display: "flex", gap: 8 }}>
+          <button
+            type="button"
+            className="btn-ghost"
+            onClick={() => setShowRequestForm(true)}
+          >
+            Request info
+          </button>
+          <button
+            type="button"
+            className="btn-danger"
+            onClick={() => setShowEscalateConfirm(true)}
+          >
+            Escalate
+          </button>
+        </div>
+      )}
+
+      {showRequestForm && (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           <input
             type="text"
@@ -370,17 +395,9 @@ function ActionButtons({
             </button>
           </div>
         </div>
-      ) : (
-        <button
-          type="button"
-          className="btn-ghost"
-          onClick={() => setShowRequestForm(true)}
-        >
-          Request info
-        </button>
       )}
 
-      {showEscalateConfirm ? (
+      {showEscalateConfirm && (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           <div className="sync-note">
             Escalating routes this case to an <strong>urgent live visit</strong>{" "}
@@ -406,14 +423,6 @@ function ActionButtons({
             </button>
           </div>
         </div>
-      ) : (
-        <button
-          type="button"
-          className="btn-danger"
-          onClick={() => setShowEscalateConfirm(true)}
-        >
-          Escalate
-        </button>
       )}
     </>
   );
