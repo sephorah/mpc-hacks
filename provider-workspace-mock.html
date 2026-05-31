@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dialogue · Provider Workspace (mock)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #15201f;
+    --ink-soft: #4a5a58;
+    --ink-faint: #8a9896;
+    --paper: #f4f1ea;
+    --card: #fffdf8;
+    --line: #e2ddd1;
+    --accent: #0b6b5f;
+    --accent-soft: #d7eae6;
+
+    --sync-bg: #fbe4e1;   --sync-fg: #9c2c1e;   --sync-dot: #c0392b;
+    --pend-bg: #fbeed2;   --pend-fg: #8a5a09;   --pend-dot: #d99413;
+    --ready-bg: #d9eed6;  --ready-fg: #2f6b32;  --ready-dot: #3f9a44;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'IBM Plex Sans', sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    height: 100vh;
+    overflow: hidden;
+    background-image: radial-gradient(circle at 1px 1px, rgba(0,0,0,0.025) 1px, transparent 0);
+    background-size: 22px 22px;
+  }
+
+  header {
+    display: flex; align-items: baseline; gap: 14px;
+    padding: 18px 28px; border-bottom: 1px solid var(--line);
+    background: var(--card);
+  }
+  header .logo { font-family: 'Fraunces', serif; font-size: 22px; font-weight: 600; letter-spacing: -0.5px; }
+  header .logo span { color: var(--accent); }
+  header .crumb { font-size: 13px; color: var(--ink-faint); }
+  header .clock {
+    margin-left: auto; font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px; color: var(--ink-faint);
+    display: flex; align-items: center; gap: 7px;
+  }
+  .pulse { width: 7px; height: 7px; border-radius: 50%; background: var(--ready-dot); animation: pulse 2.5s infinite; }
+  @keyframes pulse { 0%,100%{opacity:.35;} 50%{opacity:1;} }
+
+  .layout { display: grid; grid-template-columns: 420px 1fr; height: calc(100vh - 61px); }
+
+  /* QUEUE */
+  .queue { border-right: 1px solid var(--line); overflow-y: auto; background: var(--paper); }
+  .queue-head { padding: 16px 22px 10px; display: flex; align-items: baseline; justify-content: space-between; }
+  .queue-head h2 { font-family: 'Fraunces', serif; font-weight: 500; font-size: 18px; }
+  .queue-head .count { font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--ink-faint); }
+
+  .case {
+    margin: 0 12px 8px; padding: 14px 16px; background: var(--card);
+    border: 1px solid var(--line); border-radius: 12px; cursor: pointer;
+    transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
+    position: relative;
+  }
+  .case:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(0,0,0,0.06); }
+  .case.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .case.arriving { animation: drop .5s ease; }
+  @keyframes drop { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+
+  .case .row1 { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .case .type { font-weight: 600; font-size: 14px; text-transform: capitalize; }
+  .case .meta { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--ink-faint); }
+  .case .row2 { display: flex; align-items: center; gap: 8px; }
+
+  .badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 600;
+    letter-spacing: .02em; text-transform: uppercase;
+  }
+  .badge .dot { width: 6px; height: 6px; border-radius: 50%; }
+  .badge.needs-sync    { background: var(--sync-bg);  color: var(--sync-fg); }
+  .badge.needs-sync .dot { background: var(--sync-dot); }
+  .badge.async-pending { background: var(--pend-bg);  color: var(--pend-fg); }
+  .badge.async-pending .dot { background: var(--pend-dot); }
+  .badge.async-ready   { background: var(--ready-bg); color: var(--ready-fg); }
+  .badge.async-ready .dot { background: var(--ready-dot); }
+
+  .case .missing { font-size: 12px; color: var(--ink-soft); margin-left: auto; font-style: italic; }
+
+  /* DETAIL */
+  .detail { overflow-y: auto; padding: 30px 40px; }
+  .empty { height: 100%; display: flex; align-items: center; justify-content: center; color: var(--ink-faint); font-size: 14px; }
+
+  .detail h1 { font-family: 'Fraunces', serif; font-weight: 500; font-size: 26px; text-transform: capitalize; margin-bottom: 4px; }
+  .detail .sub { font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--ink-faint); margin-bottom: 22px; }
+
+  .panel { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px 22px; margin-bottom: 16px; }
+  .panel h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--ink-faint); margin-bottom: 12px; font-weight: 600; }
+
+  .kv { display: flex; gap: 10px; padding: 7px 0; border-bottom: 1px dashed var(--line); font-size: 14px; }
+  .kv:last-child { border-bottom: 0; }
+  .kv .k { color: var(--ink-soft); width: 180px; flex-shrink: 0; }
+  .kv .v { font-weight: 500; }
+  .flag-ok { color: var(--ready-fg); }
+  .flag-bad { color: var(--sync-fg); font-weight: 600; }
+
+  .packet { font-size: 14px; line-height: 1.6; color: var(--ink); }
+  .packet .gen { display: flex; align-items: center; gap: 8px; color: var(--ink-faint); font-size: 13px; }
+  .spinner { width: 13px; height: 13px; border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .packet .ai-tag { font-family:'IBM Plex Mono', monospace; font-size: 10px; color: var(--accent); background: var(--accent-soft); padding: 2px 7px; border-radius: 5px; margin-left: 8px; }
+
+  .missing-box { background: var(--pend-bg); border: 1px solid #ecd9a8; color: var(--pend-fg); padding: 14px 16px; border-radius: 10px; font-size: 13.5px; display: flex; align-items: center; gap: 10px; }
+
+  .actions { display: flex; flex-direction: column; gap: 14px; }
+  .attest { display: flex; align-items: center; gap: 11px; font-size: 14px; padding: 12px 14px; background: var(--paper); border-radius: 10px; border: 1px solid var(--line); }
+  .attest input[type=checkbox] { width: 17px; height: 17px; accent-color: var(--accent); }
+  .attest .name { font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: var(--ink); }
+
+  button {
+    font-family: 'IBM Plex Sans', sans-serif; font-size: 14px; font-weight: 600;
+    border: 0; border-radius: 10px; padding: 13px 18px; cursor: pointer; transition: all .15s ease;
+  }
+  .btn-close { background: var(--accent); color: #fff; }
+  .btn-close:hover:not(:disabled) { background: #084f46; }
+  .btn-close:disabled { background: #c8d3d0; cursor: not-allowed; }
+  .btn-ghost { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+  .btn-ghost:hover { background: var(--accent-soft); }
+
+  .sync-note { font-size: 13.5px; color: var(--ink-soft); line-height: 1.6; }
+  .closed-stamp { display: inline-flex; align-items: center; gap: 8px; color: var(--ready-fg); font-weight: 600; font-size: 14px; }
+
+  .sim { position: fixed; bottom: 18px; right: 18px; display: flex; gap: 10px; }
+  .sim button { font-size: 12px; padding: 9px 14px; background: var(--ink); color: var(--paper); box-shadow: 0 4px 16px rgba(0,0,0,0.18); }
+  .sim button:hover { background: #000; }
+  .sim .label { position: fixed; bottom: 56px; right: 18px; font-size: 10px; font-family:'IBM Plex Mono',monospace; color: var(--ink-faint); }
+</style>
+</head>
+<body>
+  <header>
+    <div class="logo">dia<span>logue</span></div>
+    <div class="crumb">Provider Workspace · async queue</div>
+    <div class="clock"><span class="pulse"></span> polling every 2.5s</div>
+  </header>
+
+  <div class="layout">
+    <aside class="queue">
+      <div class="queue-head">
+        <h2>Open cases</h2>
+        <span class="count" id="count"></span>
+      </div>
+      <div id="list"></div>
+    </aside>
+    <main class="detail" id="detail">
+      <div class="empty">Select a case from the queue</div>
+    </main>
+  </div>
+
+  <div class="sim">
+    <span class="label">demo controls ↓</span>
+    <button onclick="simArrival()">+ patient submits</button>
+    <button onclick="simLab()">patient sends lab</button>
+  </div>
+
+<script>
+  // ---- mock data (this is your pre-seed) ----
+  let cases = [
+    { id:'c-7f3a', type:'lab-followup', lane:'async-pending', redFlags:false,
+      missing:'recent A1c lab result', freeText:'Diabetic, due for quarterly check. Feeling fine, no new symptoms.',
+      packet:null, status:'open', age:'4m' },
+    { id:'c-2b91', type:'renewal', lane:'async-ready', redFlags:false,
+      missing:null, freeText:'Need my statin refilled, no side effects, BP stable at home.',
+      packet:null, status:'open', age:'6m' },
+    { id:'c-d04e', type:'renewal', lane:'needs-sync', redFlags:true,
+      missing:null, freeText:'Want my blood pressure med renewed but Ive had chest tightness twice this week.',
+      packet:null, status:'open', age:'2m' },
+  ];
+  let selectedId = null;
+
+  const PACKETS = {
+    'c-7f3a':'Type 2 diabetic, routine quarterly follow-up. No new symptoms reported. Awaiting A1c to confirm control before renewing metformin. No red flags.',
+    'c-2b91':'Stable on atorvastatin, no reported side effects, home BP readings normal. Straightforward renewal — no labs outstanding, no red flags.',
+  };
+
+  function render() {
+    const open = cases.filter(c => c.status === 'open');
+    document.getElementById('count').textContent = open.length + ' waiting';
+    document.getElementById('list').innerHTML = open.map(c => `
+      <div class="case ${c.id===selectedId?'active':''} ${c._new?'arriving':''}" onclick="select('${c.id}')">
+        <div class="row1">
+          <span class="type">${c.type.replace('-',' ')}</span>
+          <span class="meta">${c.id} · ${c.age}</span>
+        </div>
+        <div class="row2">
+          <span class="badge ${c.lane}"><span class="dot"></span>${c.lane.replace('-',' ')}</span>
+          ${c.missing ? `<span class="missing">missing: ${c.missing}</span>` : ''}
+        </div>
+      </div>`).join('');
+    cases.forEach(c => c._new = false);
+    renderDetail();
+  }
+
+  function select(id){ selectedId = id; render(); }
+
+  function renderDetail(){
+    const el = document.getElementById('detail');
+    const c = cases.find(x => x.id === selectedId);
+    if(!c){ el.innerHTML = '<div class="empty">Select a case from the queue</div>'; return; }
+
+    let body = `
+      <h1>${c.type.replace('-',' ')}</h1>
+      <div class="sub">${c.id} · submitted ${c.age} ago · <span class="badge ${c.lane}" style="vertical-align:middle"><span class="dot"></span>${c.lane.replace('-',' ')}</span></div>
+
+      <div class="panel">
+        <h3>Intake</h3>
+        <div class="kv"><span class="k">Request type</span><span class="v" style="text-transform:capitalize">${c.type.replace('-',' ')}</span></div>
+        <div class="kv"><span class="k">Red-flag screen</span><span class="v ${c.redFlags?'flag-bad':'flag-ok'}">${c.redFlags?'⚠ tripped — chest tightness':'clear'}</span></div>
+        <div class="kv"><span class="k">Patient note</span><span class="v" style="font-weight:400">${c.freeText}</span></div>
+      </div>`;
+
+    if(c.status === 'closed'){
+      body += `<div class="panel"><span class="closed-stamp">✓ Closed async — ${c._attestName}</span></div>`;
+      el.innerHTML = body; return;
+    }
+
+    if(c.lane === 'needs-sync'){
+      body += `<div class="panel"><h3>Disposition</h3>
+        <div class="sync-note">Red flag tripped on intake. This case <strong>cannot close async</strong> — routed to a live visit. Intake is preserved so the clinician starts with full context; no time lost re-collecting.</div>
+        <div style="margin-top:14px"><button class="btn-ghost">→ Booked for live visit</button></div></div>`;
+      el.innerHTML = body; return;
+    }
+
+    // async lanes → packet + close
+    body += `<div class="panel"><h3>Decision packet <span class="packet"><span class="ai-tag">AI-generated</span></span></h3>
+        <div class="packet" id="packet"></div></div>`;
+
+    if(c.lane === 'async-pending'){
+      body += `<div class="panel"><h3>Blocking</h3>
+        <div class="missing-box">⏳ Waiting on patient: <strong>${c.missing}</strong></div></div>
+        <div class="panel actions">
+          <div class="attest"><input type="checkbox" disabled><span>I authorize this renewal — <span class="name">Dr. [clinician]</span></span></div>
+          <button class="btn-close" disabled>Close case · blocked until lab arrives</button>
+        </div>`;
+    } else { // async-ready
+      body += `<div class="panel actions">
+          <h3>Clinician sign-off</h3>
+          <div class="attest"><input type="checkbox" id="attestBox" onchange="toggleClose()"><span>I authorize this renewal — <span class="name">Dr. A. Moreau, MD · #QC-88421</span></span></div>
+          <button class="btn-close" id="closeBtn" disabled onclick="closeCase('${c.id}')">Attest &amp; close</button>
+        </div>`;
+    }
+    el.innerHTML = body;
+
+    // simulate the one live LLM call when an async case is opened
+    if(!c.packet && (c.lane==='async-ready' || c.lane==='async-pending')){
+      const p = document.getElementById('packet');
+      p.innerHTML = `<span class="gen"><span class="spinner"></span> generating decision packet…</span>`;
+      setTimeout(() => {
+        c.packet = PACKETS[c.id] || 'Summary unavailable — using canned fallback.';
+        if(selectedId === c.id){ document.getElementById('packet').textContent = c.packet; }
+      }, 1100);
+    } else if(c.packet){
+      document.getElementById('packet').textContent = c.packet;
+    }
+  }
+
+  function toggleClose(){
+    document.getElementById('closeBtn').disabled = !document.getElementById('attestBox').checked;
+  }
+  function closeCase(id){
+    const c = cases.find(x => x.id === id);
+    c.status = 'closed'; c._attestName = 'Dr. A. Moreau, MD';
+    render();
+  }
+
+  // ---- demo controls ----
+  function simArrival(){
+    const c = { id:'c-'+Math.random().toString(16).slice(2,6), type:'renewal', lane:'async-ready',
+      redFlags:false, missing:null, freeText:'Birth control renewal, no issues, no new meds.',
+      packet:null, status:'open', age:'just now', _new:true };
+    cases.unshift(c);
+    render();
+  }
+  function simLab(){
+    const c = cases.find(x => x.lane === 'async-pending' && x.status==='open');
+    if(c){ c.lane = 'async-ready'; c.missing = null; c.age='now'; c._new=true; render(); }
+  }
+
+  render();
+</script>
+</body>
+</html>

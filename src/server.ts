@@ -3,30 +3,30 @@ import next from "next";
 import { State } from "./state";
 
 declare global {
-    var state: State;
+  var state: State;
 }
 
 function initState() {
-    global.state = new State();
+  global.state = new State();
 }
 
 export function getState() {
-    return global.state;
+  return global.state;
 }
 
-process.env.NEXT_RUNTIME = 'nodejs';
+process.env.NEXT_RUNTIME = "nodejs";
 
-const app = next({ dev: process.env.NODE_ENV !== 'production' });
+const app = next({ dev: process.env.NODE_ENV !== "production" });
 
 app.prepare().then(() => {
-    const handler = app.getRequestHandler();
-    const server = createServer(async (req, res) => {
-        await handler(req, res);
-    });
+  const handler = app.getRequestHandler();
+  const server = createServer(async (req, res) => {
+    await handler(req, res);
+  });
 
-    initState();
+  initState();
 
-    server.listen(3000, () => {
-        console.log('Server running on port 3000.');
-    });
+  server.listen(3000, () => {
+    console.log("Server running on port 3000.");
+  });
 });
