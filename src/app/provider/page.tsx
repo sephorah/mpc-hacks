@@ -804,7 +804,7 @@ function CaseDetail({
                   >
                     ✓ Attest &amp; close
                   </button>
-                  {cohortReady.length >= 2 && (
+                  {/* {cohortReady.length >= 2 && (
                     <button
                       type="button"
                       className="btn-batch"
@@ -813,7 +813,7 @@ function CaseDetail({
                     >
                       Close all {cohortReady.length} similar
                     </button>
-                  )}
+                  )} */}
                   <button
                     type="button"
                     className="btn-danger"
