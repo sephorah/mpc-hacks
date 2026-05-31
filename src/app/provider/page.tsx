@@ -4,21 +4,37 @@ import { useEffect, useMemo, useState } from "react";
 import type { Case, CaseType, Lane } from "@/lib/types";
 
 const TYPE_LABEL: Record<CaseType, string> = {
-  "med-renewal": "renewal",
-  "lab-followup": "lab followup",
-  "chronic-condition-check-in": "chronic condition check in",
+  "med-renewal": "Renewal",
+  "lab-followup": "Lab follow-up",
+  "chronic-condition-check-in": "Chronic check-in",
+};
+
+// Mock stats — will be computed from real case data later
+const MOCK_SYNC_SLOTS_FREED = 7;
+const MOCK_CASES_PER_HOUR = 11.2;
+
+// Mock patient messages — will be templated dynamically later
+const PATIENT_MESSAGES: Partial<Record<CaseType, string>> = {
+  "med-renewal":
+    '"Your renewal is approved. No visit needed. Your prescription will be sent to your pharmacy within 24 hours."',
+  "lab-followup":
+    '"Your lab results have been reviewed. Everything looks good — no changes to your care plan at this time."',
+  "chronic-condition-check-in":
+    '"Your check-in has been reviewed. Your current treatment plan remains appropriate."',
 };
 
 function laneLabel(lane: Lane): string {
   return lane.replace(/-/g, " ");
 }
 
-function timeAgo(ts: number): string {
-  const diff = Math.floor((Date.now() - ts) / 1000);
-  if (diff < 60) return "just now";
-  if (diff < 3600) return `${Math.floor(diff / 60)}m`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
-  return `${Math.floor(diff / 86400)}d`;
+function laneSubtitle(c: Case): string {
+  if (c.lane === "async-ready")
+    return c.type === "lab-followup"
+      ? "Lab received · ready to close"
+      : "Ready to close";
+  if (c.lane === "async-pending")
+    return `Waiting on: ${c.missing ?? "patient info"}`;
+  return "Red flag · → live visit";
 }
 
 const PACKETS: Record<string, string> = {
@@ -29,7 +45,7 @@ const PACKETS: Record<string, string> = {
 };
 
 const PACKET_FALLBACK = "Summary unavailable — using canned fallback.";
-const ATTEST_CLINICIAN = "Dr. A. Moreau, MD";
+const ATTEST_CLINICIAN = "Dr. A. Moreau, MD · #QC-88421";
 
 function makeSeed(): Case[] {
   const min = (n: number) => Date.now() - n * 60_000;
@@ -98,7 +114,6 @@ export default function ProviderWorkspace() {
   const [cases, setCases] = useState<Case[]>(seed);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [generatingId, setGeneratingId] = useState<string | null>(null);
-  const [attested, setAttested] = useState(false);
   const [arriving, setArriving] = useState<Set<string>>(new Set());
 
   // Poll real API once it exists; preserve locally-closed/escalated cases on merge.
@@ -127,7 +142,7 @@ export default function ProviderWorkspace() {
           });
         }
       } catch {
-        // API not built yet (issues 1–4) — keep current state.
+        // API not built yet — keep current state.
       }
     }
     poll();
@@ -159,7 +174,6 @@ export default function ProviderWorkspace() {
 
   function select(id: string) {
     setSelectedId(id);
-    setAttested(false);
   }
 
   function closeCase(id: string) {
@@ -248,11 +262,38 @@ export default function ProviderWorkspace() {
 
   return (
     <>
+      <div className="stats-bar">
+        <div className="stat-card">
+          <span className="stat-label">Synchronous slots freed</span>
+          <span className="stat-value">{MOCK_SYNC_SLOTS_FREED}</span>
+        </div>
+        <div className="stat-card">
+          <span className="stat-label">Cases / clinician-hour</span>
+          <span className="stat-value">{MOCK_CASES_PER_HOUR}</span>
+        </div>
+      </div>
+
       <div className="layout">
         <aside className="queue">
           <div className="queue-head">
-            <h2>Open cases</h2>
-            <span className="count">{open.length} waiting</span>
+            <span className="queue-title">
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                <path d="M3 3v5h5" />
+              </svg>
+              Queue
+            </span>
+            <span className="count">{open.length} open</span>
           </div>
           <div>
             {open.map((c) => (
@@ -267,15 +308,10 @@ export default function ProviderWorkspace() {
               >
                 <div className="row1">
                   <span className="type">{TYPE_LABEL[c.type]}</span>
-                  <span className="meta">
-                    {c.id} · {timeAgo(c.createdAt)}
-                  </span>
+                  <Badge lane={c.lane} />
                 </div>
                 <div className="row2">
-                  <Badge lane={c.lane} />
-                  {c.missing ? (
-                    <span className="missing">missing: {c.missing}</span>
-                  ) : null}
+                  <span className="subtitle">{laneSubtitle(c)}</span>
                 </div>
               </button>
             ))}
@@ -290,8 +326,6 @@ export default function ProviderWorkspace() {
               key={selected.id}
               c={selected}
               generating={generatingId === selected.id}
-              attested={attested}
-              onAttestChange={setAttested}
               onClose={() => closeCase(selected.id)}
               onRequestInfo={(msg) => requestInfo(selected.id, msg)}
               onEscalate={() => escalateCase(selected.id)}
@@ -320,6 +354,7 @@ function ActionButtons({
   setRequestMsg,
   showEscalateConfirm,
   setShowEscalateConfirm,
+  canRequestInfo = false,
   onRequestInfo,
   onEscalate,
 }: {
@@ -329,6 +364,7 @@ function ActionButtons({
   setRequestMsg: (v: string) => void;
   showEscalateConfirm: boolean;
   setShowEscalateConfirm: (v: boolean) => void;
+  canRequestInfo?: boolean;
   onRequestInfo: (msg: string) => void;
   onEscalate: () => void;
 }) {
@@ -336,13 +372,15 @@ function ActionButtons({
     <>
       {!showRequestForm && !showEscalateConfirm && (
         <div style={{ display: "flex", gap: 8 }}>
-          <button
-            type="button"
-            className="btn-ghost"
-            onClick={() => setShowRequestForm(true)}
-          >
-            Request info
-          </button>
+          {canRequestInfo && (
+            <button
+              type="button"
+              className="btn-ghost"
+              onClick={() => setShowRequestForm(true)}
+            >
+              Request info
+            </button>
+          )}
           <button
             type="button"
             className="btn-danger"
@@ -431,16 +469,12 @@ function ActionButtons({
 function CaseDetail({
   c,
   generating,
-  attested,
-  onAttestChange,
   onClose,
   onRequestInfo,
   onEscalate,
 }: {
   c: Case;
   generating: boolean;
-  attested: boolean;
-  onAttestChange: (v: boolean) => void;
   onClose: () => void;
   onRequestInfo: (message: string) => void;
   onEscalate: () => void;
@@ -448,34 +482,28 @@ function CaseDetail({
   const [showRequestForm, setShowRequestForm] = useState(false);
   const [requestMsg, setRequestMsg] = useState("");
   const [showEscalateConfirm, setShowEscalateConfirm] = useState(false);
+  const [attestName, setAttestName] = useState(ATTEST_CLINICIAN);
 
   return (
     <>
-      <h1>{TYPE_LABEL[c.type]}</h1>
-      <div className="sub">
-        {c.id} · submitted {timeAgo(c.createdAt)} ago ·{" "}
-        <Badge lane={c.lane} inline />
+      <div className="detail-header">
+        <h1>
+          {TYPE_LABEL[c.type]}{" "}
+          <span className="detail-case-id">· case {c.id}</span>
+        </h1>
+        <Badge lane={c.lane} />
       </div>
 
       <div className="panel">
         <h3>Intake</h3>
-        <div className="kv">
-          <span className="k">Request type</span>
-          <span className="v" style={{ textTransform: "capitalize" }}>
-            {TYPE_LABEL[c.type]}
-          </span>
-        </div>
-        <div className="kv">
-          <span className="k">Red-flag screen</span>
-          <span className={`v ${c.redFlags ? "flag-bad" : "flag-ok"}`}>
-            {c.redFlags ? "⚠ tripped — chest tightness" : "clear"}
-          </span>
-        </div>
-        <div className="kv">
-          <span className="k">Patient note</span>
-          <span className="v" style={{ fontWeight: 400 }}>
-            {c.freeText}
-          </span>
+        <p className="intake-text">{c.freeText}</p>
+        <div className="intake-checks">
+          {!c.redFlags && <span className="check-ok">✓ No red flags</span>}
+          {c.lane === "async-ready" && (
+            <span className="check-ok">✓ Lab attached</span>
+          )}
+          {c.redFlags && <span className="check-bad">⚠ Red flag detected</span>}
+          {c.missing && <span className="check-pending">⏳ {c.missing}</span>}
         </div>
       </div>
 
@@ -508,12 +536,27 @@ function CaseDetail({
         </div>
       ) : (
         <>
-          <div className="panel">
-            <h3>
-              Decision packet{" "}
-              <span className="packet">
-                <span className="ai-tag">AI-generated</span>
-              </span>
+          <div className="panel dashed">
+            <h3 style={{ display: "flex", alignItems: "center", gap: 5 }}>
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+                style={{ flexShrink: 0 }}
+              >
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+                <line x1="16" y1="13" x2="8" y2="13" />
+                <line x1="16" y1="17" x2="8" y2="17" />
+                <polyline points="10 9 9 9 8 9" />
+              </svg>
+              Decision packet · <span className="ai-tag">AI GENERATED</span>
             </h3>
             <div className="packet">
               {generating || !c.packet ? (
@@ -526,6 +569,19 @@ function CaseDetail({
             </div>
           </div>
 
+          {c.lane === "async-ready" && !generating && c.packet && (
+            <div className="panel dashed">
+              <h3>
+                Patient will receive{" "}
+                <span className="read-only-tag">templated · read-only</span>
+              </h3>
+              <p className="patient-msg">
+                {PATIENT_MESSAGES[c.type] ??
+                  '"Your care team has reviewed your request and will follow up shortly."'}
+              </p>
+            </div>
+          )}
+
           {c.lane === "async-pending" ? (
             <>
               <div className="panel">
@@ -535,13 +591,6 @@ function CaseDetail({
                 </div>
               </div>
               <div className="panel actions">
-                <div className="attest">
-                  <input type="checkbox" disabled />
-                  <span>
-                    I authorize this renewal —{" "}
-                    <span className="name">Dr. [clinician]</span>
-                  </span>
-                </div>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   <button type="button" className="btn-close" disabled>
                     Close case · blocked
@@ -553,6 +602,7 @@ function CaseDetail({
                     setRequestMsg={setRequestMsg}
                     showEscalateConfirm={showEscalateConfirm}
                     setShowEscalateConfirm={setShowEscalateConfirm}
+                    canRequestInfo
                     onRequestInfo={onRequestInfo}
                     onEscalate={onEscalate}
                   />
@@ -561,38 +611,33 @@ function CaseDetail({
             </>
           ) : (
             <div className="panel actions">
-              <h3>Clinician sign-off</h3>
-              <div className="attest">
+              <div className="attest-row">
                 <input
-                  type="checkbox"
-                  checked={attested}
-                  onChange={(e) => onAttestChange(e.target.checked)}
+                  type="text"
+                  className="attest-input"
+                  value={attestName}
+                  onChange={(e) => setAttestName(e.target.value)}
+                  placeholder="Clinician name"
                 />
-                <span>
-                  I authorize this renewal —{" "}
-                  <span className="name">Dr. A. Moreau, MD · #QC-88421</span>
-                </span>
-              </div>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 <button
                   type="button"
                   className="btn-close"
-                  disabled={!attested}
+                  disabled={!attestName.trim()}
                   onClick={onClose}
                 >
-                  Attest &amp; close
+                  ✓ Attest &amp; close
                 </button>
-                <ActionButtons
-                  showRequestForm={showRequestForm}
-                  setShowRequestForm={setShowRequestForm}
-                  requestMsg={requestMsg}
-                  setRequestMsg={setRequestMsg}
-                  showEscalateConfirm={showEscalateConfirm}
-                  setShowEscalateConfirm={setShowEscalateConfirm}
-                  onRequestInfo={onRequestInfo}
-                  onEscalate={onEscalate}
-                />
               </div>
+              <ActionButtons
+                showRequestForm={showRequestForm}
+                setShowRequestForm={setShowRequestForm}
+                requestMsg={requestMsg}
+                setRequestMsg={setRequestMsg}
+                showEscalateConfirm={showEscalateConfirm}
+                setShowEscalateConfirm={setShowEscalateConfirm}
+                onRequestInfo={onRequestInfo}
+                onEscalate={onEscalate}
+              />
             </div>
           )}
         </>

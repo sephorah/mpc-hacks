@@ -27,10 +27,9 @@ export default function ProviderLayout({ children }: { children: ReactNode }) {
       className={`provider-workspace ${plexSans.variable} ${plexMono.variable} ${fraunces.variable}`}
     >
       <header>
-        <div className="logo">
-          Dialogue
-        </div>
+        <div className="logo">Dialogue</div>
         <div className="crumb">Care Provider Workspace</div>
+        <div className="greeting">Hi, Dr. A. Moreau</div>
         <div className="clock">
           <span className="pulse" aria-hidden="true" /> polling every 15 s
         </div>

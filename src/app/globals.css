@@ -118,7 +118,6 @@ body {
   color: var(--ink-faint);
 }
 .provider-workspace header .clock {
-  margin-left: auto;
   font-family: var(--font-plex-mono), monospace;
   font-size: 12px;
   color: var(--ink-faint);
@@ -351,14 +350,18 @@ body {
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
 }
-.provider-workspace .packet .ai-tag {
+.provider-workspace .ai-tag {
   font-family: var(--font-plex-mono), monospace;
   font-size: 10px;
   color: var(--accent);
   background: var(--accent-soft);
   padding: 2px 7px;
   border-radius: 5px;
-  margin-left: 8px;
+  margin-left: 4px;
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 400;
+  vertical-align: middle;
 }
 
 .provider-workspace .missing-box {
@@ -475,4 +478,156 @@ body {
   font-size: 10px;
   font-family: var(--font-plex-mono), monospace;
   color: var(--ink-faint);
+}
+
+/* HEADER GREETING */
+.provider-workspace header .greeting {
+  margin-left: auto;
+  font-size: 13px;
+  color: var(--ink-soft);
+  font-weight: 500;
+}
+.provider-workspace header .clock {
+  margin-left: 18px;
+}
+
+/* STATS BAR */
+.provider-workspace .stats-bar {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  padding: 14px 28px;
+  border-bottom: 1px solid var(--line);
+  background: var(--card);
+  flex-shrink: 0;
+}
+.provider-workspace .stat-card {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px 18px;
+}
+.provider-workspace .stat-label {
+  display: block;
+  font-size: 12px;
+  color: var(--ink-faint);
+  margin-bottom: 4px;
+}
+.provider-workspace .stat-value {
+  display: block;
+  font-family: var(--font-fraunces), serif;
+  font-size: 30px;
+  font-weight: 500;
+  color: var(--ink);
+  line-height: 1.1;
+}
+
+/* QUEUE TITLE */
+.provider-workspace .queue-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--font-plex-mono), monospace;
+  font-size: 13px;
+  color: var(--ink-soft);
+  font-weight: 500;
+}
+
+/* QUEUE ITEM SUBTITLE */
+.provider-workspace .case .subtitle {
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+.provider-workspace .case .row1 {
+  justify-content: space-between;
+}
+
+/* DETAIL HEADER */
+.provider-workspace .detail-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 22px;
+}
+.provider-workspace .detail-header h1 {
+  text-transform: none;
+  margin-bottom: 0;
+}
+.provider-workspace .detail-case-id {
+  font-family: var(--font-plex-mono), monospace;
+  font-size: 16px;
+  font-weight: 400;
+  color: var(--ink-faint);
+}
+
+/* INTAKE */
+.provider-workspace .intake-text {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--ink);
+  margin-bottom: 12px;
+}
+.provider-workspace .intake-checks {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.provider-workspace .check-ok {
+  font-size: 13px;
+  color: var(--ready-fg);
+  font-weight: 500;
+}
+.provider-workspace .check-bad {
+  font-size: 13px;
+  color: var(--sync-fg);
+  font-weight: 600;
+}
+.provider-workspace .check-pending {
+  font-size: 13px;
+  color: var(--pend-fg);
+}
+
+/* DASHED PANEL */
+.provider-workspace .panel.dashed {
+  border-style: dashed;
+}
+
+/* PATIENT MESSAGE */
+.provider-workspace .patient-msg {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--ink-soft);
+  font-style: italic;
+}
+.provider-workspace .read-only-tag {
+  font-family: var(--font-plex-mono), monospace;
+  font-size: 10px;
+  color: var(--ink-faint);
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  margin-left: 6px;
+}
+
+/* ATTEST ROW */
+.provider-workspace .attest-row {
+  display: flex;
+  gap: 10px;
+}
+.provider-workspace .attest-input {
+  flex: 1;
+  padding: 13px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-plex-sans), "IBM Plex Sans", sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+}
+.provider-workspace .attest-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
 }
