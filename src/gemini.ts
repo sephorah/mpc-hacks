@@ -112,5 +112,9 @@ Field definitions:
 - missing: What's blocking closure (e.g., "lab result", "provider signature"), or null if nothing is missing
 - freeText: A concise summary of the case for the provider (2-3 sentences)
 
+Low-priority cases such as simple symptoms like coughs or headaches should fall into the async category.
+Cases with considerable nuance that require personal communication to determine the correct course of action should fall into the sync category.
+This includes situations such as mental health enquiries, checkups and follow ups with a provider, and situations where text responses do not remedy the situation.
+
 Respond with ONLY the JSON object, nothing else.`;
 }
