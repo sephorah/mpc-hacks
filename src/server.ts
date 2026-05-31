@@ -3,7 +3,7 @@ import next from "next";
 import { initState } from "./state";
 import { loadEnvFile } from 'node:process';
 
-loadEnvFile(".env.local");
+try { loadEnvFile(".env.local"); } catch { /* .env.local is optional */ }
 
 process.env.NEXT_RUNTIME = "nodejs";
 
