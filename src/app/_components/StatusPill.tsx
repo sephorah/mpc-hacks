@@ -1,4 +1,4 @@
-import type { CaseStatus } from "@/state";
+import type { CaseStatus } from "@/domain";
 
 const STATUS_CONFIG: Record<
   string,

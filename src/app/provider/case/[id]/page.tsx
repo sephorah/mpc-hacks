@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { GlassCard } from "@/app/_components/GlassCard";
 import { StatusPill } from "@/app/_components/StatusPill";
 import { SafetyFlagBadge } from "@/app/_components/SafetyFlagBadge";
-import type { PatientCase } from "@/state";
+import type { PatientCase } from "@/domain";
 
 export default function ProviderCaseReview() {
   const { id } = useParams();

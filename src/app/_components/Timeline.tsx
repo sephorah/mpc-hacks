@@ -1,4 +1,4 @@
-import type { ThreadMessage } from "@/state";
+import type { ThreadMessage } from "@/domain";
 
 export function Timeline({ messages }: { messages: ThreadMessage[] }) {
   if (messages.length === 0) {

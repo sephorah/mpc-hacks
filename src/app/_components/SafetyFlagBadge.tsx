@@ -1,4 +1,4 @@
-import { RED_FLAG_LABELS } from "@/state";
+import { RED_FLAG_LABELS } from "@/domain";
 
 export function SafetyFlagBadge({ flag }: { flag: string }) {
   const isRedFlag = flag in RED_FLAG_LABELS || flag.startsWith("high");

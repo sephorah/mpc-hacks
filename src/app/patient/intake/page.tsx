@@ -4,8 +4,8 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { GlassCard } from "@/app/_components/GlassCard";
 import { ProgressStepper } from "@/app/_components/ProgressStepper";
-import { MedicalServiceType } from "@/state";
-import type { IngestPayload } from "@/state";
+import { MedicalServiceType } from "@/domain";
+import type { IngestPayload } from "@/domain";
 
 const MEDS = ["Synthroid", "Metformin", "Lisinopril", "Atorvastatin", "Amlodipine"];
 const LABS = ["CBC", "TSH", "Lipid Panel", "A1C", "Liver Panel"];
@@ -52,14 +52,24 @@ export default function IntakePage() {
   }, []);
 
   const handleNext = () => {
-    if (step === 1) {
+    if (step === 1 && service !== "DIRECT_CONTACT") {
       const hasRedFlag = Object.values(redFlags).some((v) => v);
       if (hasRedFlag || systolic > 180 || diastolic > 120) {
         setShowEmergency(true);
         return;
       }
     }
-    setStep((s) => Math.min(s + 1, 3));
+    setStep((s) => {
+      if (service === "DIRECT_CONTACT" && s === 0) return 2;
+      return Math.min(s + 1, 3);
+    });
+  };
+
+  const handleBack = () => {
+    setStep((s) => {
+      if (service === "DIRECT_CONTACT" && s === 2) return 0;
+      return Math.max(s - 1, 0);
+    });
   };
 
   const submitEscalated = async () => {
@@ -73,17 +83,19 @@ export default function IntakePage() {
       const payload: IngestPayload = {
         patientName,
         serviceType: MedicalServiceType[service as keyof typeof MedicalServiceType],
-        conditionKey,
+        conditionKey: service === "DIRECT_CONTACT" ? "Triage" : conditionKey,
         structuredData: service === "RENEWAL" ? {
           medicationName: conditionKey,
           currentDosage,
           frequency,
           requestingDosageChange,
           ...(requestingDosageChange ? { newDosage } : {})
-        } : {
+        } : service === "LAB_FOLLOW_UP" ? {
           labType: conditionKey,
           testDate,
           resultsAvailable
+        } : {
+          requestType: "Direct Contact"
         },
         freeText,
         redFlagChecks: redFlags,
@@ -103,8 +115,9 @@ export default function IntakePage() {
       const data = await res.json();
       
       if (data.success) {
-        // Trigger AI summary asynchronously
-        fetch("/api/process-case", {
+        // Trigger AI summary or triage asynchronously
+        const endpoint = service === "DIRECT_CONTACT" ? "/api/triage-case" : "/api/process-case";
+        fetch(endpoint, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ caseId: data.case.id }),
@@ -129,7 +142,7 @@ export default function IntakePage() {
   return (
     <div className="w-full max-w-2xl mx-auto py-8 px-4 relative">
       <div className="mb-8">
-        <ProgressStepper steps={["Service Details", "Health Check", "Context", "Review"]} currentStep={step} />
+        <ProgressStepper steps={service === "DIRECT_CONTACT" ? ["Sign In", "Your Message", "Review"] : ["Service Details", "Health Check", "Context", "Review"]} currentStep={service === "DIRECT_CONTACT" && step === 2 ? 1 : service === "DIRECT_CONTACT" && step === 3 ? 2 : step} />
       </div>
 
       <div className="relative">
@@ -172,7 +185,7 @@ export default function IntakePage() {
                     </div>
                   )}
                 </>
-              ) : (
+              ) : service === "LAB_FOLLOW_UP" ? (
                 <>
                   <div>
                     <label className="block text-sm font-medium mb-1">Lab Type</label>
@@ -190,7 +203,7 @@ export default function IntakePage() {
                     <span className="text-sm">My results are available in the portal</span>
                   </label>
                 </>
-              )}
+              ) : null}
             </div>
           </GlassCard>
         )}
@@ -272,13 +285,15 @@ export default function IntakePage() {
                 <span className="col-span-2 font-medium">{patientName}</span>
               </div>
               <div className="grid grid-cols-3 gap-2 border-b border-white/[0.05] pb-3">
-                <span className="text-text-muted">{service === "RENEWAL" ? "Medication:" : "Lab Test:"}</span>
-                <span className="col-span-2 font-medium">{conditionKey}</span>
+                <span className="text-text-muted">{service === "RENEWAL" ? "Medication:" : service === "LAB_FOLLOW_UP" ? "Lab Test:" : "Service:"}</span>
+                <span className="col-span-2 font-medium">{service === "DIRECT_CONTACT" ? "Direct Contact AI Triage" : conditionKey}</span>
               </div>
-              <div className="grid grid-cols-3 gap-2 border-b border-white/[0.05] pb-3">
-                <span className="text-text-muted">Vitals:</span>
-                <span className="col-span-2 font-mono text-primary">{systolic}/{diastolic} mmHg, {heartRate} bpm</span>
-              </div>
+              {service !== "DIRECT_CONTACT" && (
+                <div className="grid grid-cols-3 gap-2 border-b border-white/[0.05] pb-3">
+                  <span className="text-text-muted">Vitals:</span>
+                  <span className="col-span-2 font-mono text-primary">{systolic}/{diastolic} mmHg, {heartRate} bpm</span>
+                </div>
+              )}
               <div>
                 <span className="block text-text-muted mb-1">Notes:</span>
                 <p className="text-text-secondary italic">{freeText || "None provided."}</p>
@@ -290,7 +305,7 @@ export default function IntakePage() {
 
       <div className="mt-8 flex justify-between">
         {step > 0 ? (
-          <button onClick={() => setStep(step - 1)} className="px-6 py-2 rounded-full border border-white/[0.1] hover:bg-surface-alt transition-colors font-medium">
+          <button onClick={handleBack} className="px-6 py-2 rounded-full border border-white/[0.1] hover:bg-surface-alt transition-colors font-medium">
             Back
           </button>
         ) : <div />}
@@ -298,7 +313,7 @@ export default function IntakePage() {
         {step < 3 ? (
           <button 
             onClick={handleNext} 
-            disabled={!patientName || !conditionKey}
+            disabled={!patientName || (service !== "DIRECT_CONTACT" && !conditionKey)}
             className="px-6 py-2 rounded-full bg-primary text-surface font-bold hover:bg-primary-light transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_15px_var(--color-primary-glow)]"
           >
             Continue

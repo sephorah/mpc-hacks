@@ -71,6 +71,33 @@ export default function PatientHome() {
             </div>
           </GlassCard>
         </Link>
+
+        {/* Direct Contact / AI Triage */}
+        <Link
+          href="/patient/intake?service=DIRECT_CONTACT"
+          className="animate-slide-up sm:col-span-2 lg:col-span-1"
+          style={{ animationDelay: "300ms" }}
+        >
+          <GlassCard hover className="group h-full flex flex-col items-center gap-4 text-center cursor-pointer border-primary/30 bg-primary/5">
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/20 text-4xl transition-transform duration-300 group-hover:scale-110 shadow-[0_0_20px_var(--color-primary-glow)]">
+              💬
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-text-primary">
+                Direct Contact
+              </h2>
+              <p className="mt-1.5 text-sm text-text-secondary leading-relaxed">
+                Explain your symptoms or request. Our smart triage will route you instantly to the right care queue.
+              </p>
+            </div>
+            <div className="mt-auto flex items-center gap-1.5 text-sm font-bold text-primary opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+              Message us
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+              </svg>
+            </div>
+          </GlassCard>
+        </Link>
       </div>
 
       {/* ── Trust Badge ──────────────────────────────────────── */}
