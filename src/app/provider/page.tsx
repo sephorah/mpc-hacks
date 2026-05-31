@@ -58,7 +58,16 @@ const PACKETS: Record<string, string> = {
 };
 // PACKETS is used as a local fallback for seed cases not stored server-side
 
-const PACKET_FALLBACK = "Summary unavailable — using canned fallback.";
+const PACKET_FALLBACK: Record<CaseType, string> = {
+  "med-renewal":
+    "• Medication: renewal request — see patient note above\n• Context: review side-effect history and last refill date before approving\n• Note: summary generation failed — attest based on raw intake",
+  "lab-followup":
+    "• Test: lab follow-up request — see patient note above\n• Values: check uploaded results before responding\n• Note: summary generation failed — attest based on raw intake",
+  "chronic-condition-check-in":
+    "• Condition: chronic care check-in — see patient note above\n• Measurements: verify reported values against care plan targets\n• Note: summary generation failed — attest based on raw intake",
+  "general-enquiry":
+    "• Concern: general enquiry — see patient note above\n• Detail: review full intake before responding\n• Note: summary generation failed — attest based on raw intake",
+};
 const ATTEST_CLINICIAN = "Dr. A. Moreau, MD · #QC-88421";
 
 function makeSeed(): Case[] {
@@ -246,13 +255,14 @@ export default function ProviderWorkspace() {
 
     setGeneratingId(selectedId);
     const capturedId = selectedId;
+    const capturedType = c.type;
     let cancelled = false;
 
     fetch(`/api/case/${capturedId}/packet`, { method: "POST" })
       .then((res) => res.json())
       .then((json) => {
         if (cancelled) return;
-        const packet: string | null = json.data?.packet ?? PACKETS[capturedId] ?? PACKET_FALLBACK;
+        const packet: string | null = json.data?.packet ?? PACKETS[capturedId] ?? PACKET_FALLBACK[capturedType];
         setCases((prev) =>
           prev.map((x) => (x.id === capturedId ? { ...x, packet } : x)),
         );
@@ -261,7 +271,7 @@ export default function ProviderWorkspace() {
         if (cancelled) return;
         setCases((prev) =>
           prev.map((x) =>
-            x.id === capturedId ? { ...x, packet: PACKETS[capturedId] ?? PACKET_FALLBACK } : x,
+            x.id === capturedId ? { ...x, packet: PACKETS[capturedId] ?? PACKET_FALLBACK[capturedType] } : x,
           ),
         );
       })
