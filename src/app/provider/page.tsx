@@ -1,7 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Case, CaseType, Lane } from "@/lib/types";
+
+const LANE_ORDER: Lane[] = ["needs-sync", "async-ready", "async-pending"];
+
 
 const TYPE_LABEL: Record<CaseType, string> = {
   "med-renewal": "Renewal",
@@ -28,6 +31,14 @@ function laneLabel(lane: Lane): string {
   return lane.replace(/-/g, " ");
 }
 
+function timeAgo(ts: number): string {
+  const s = Math.floor((Date.now() - ts) / 1000);
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m`;
+  return `${Math.floor(m / 60)}h`;
+}
+
 function laneSubtitle(c: Case): string {
   if (c.lane === "async-ready")
     return c.type === "lab-followup"
@@ -40,7 +51,7 @@ function laneSubtitle(c: Case): string {
 
 const PACKETS: Record<string, string> = {
   "c-7f3a":
-    "Type 2 diabetic, routine quarterly follow-up. No new symptoms reported. Awaiting A1c to confirm control before renewing metformin. No red flags.",
+    "Type 2 diabetic, routine quarterly follow-up. No new symptoms reported. Awaiting lab result to confirm control before renewing metformin. No red flags.",
   "c-2b91":
     "Stable on atorvastatin, no reported side effects, home BP readings normal. Straightforward renewal — no labs outstanding, no red flags.",
 };
@@ -54,18 +65,18 @@ function makeSeed(): Case[] {
   return [
     {
       patient_id: null,
-      id: "c-7f3a",
-      type: "lab-followup",
-      lane: "async-pending",
+      id: "c-d04e",
+      type: "med-renewal",
+      lane: "needs-sync",
       answers: {},
-      redFlags: false,
-      missing: "recent A1c lab result",
+      redFlags: true,
+      missing: null,
       freeText:
-        "Diabetic, due for quarterly check. Feeling fine, no new symptoms.",
+        "Want my blood pressure med renewed but Ive had chest tightness twice this week.",
       packet: null,
       status: "open",
       cohortId: null,
-      createdAt: min(4),
+      createdAt: min(2),
       closedAt: null,
       escalatedAt: null,
     },
@@ -80,25 +91,57 @@ function makeSeed(): Case[] {
       freeText: "Need my statin refilled, no side effects, BP stable at home.",
       packet: null,
       status: "open",
-      cohortId: "cohort-med-renewal",
+      cohortId: "cohort-med-renewal:async-ready",
       createdAt: min(6),
       closedAt: null,
       escalatedAt: null,
     },
     {
       patient_id: null,
-      id: "c-d04e",
+      id: "c-e5b2",
       type: "med-renewal",
-      lane: "needs-sync",
+      lane: "async-ready",
       answers: {},
-      redFlags: true,
+      redFlags: false,
       missing: null,
-      freeText:
-        "Want my blood pressure med renewed but Ive had chest tightness twice this week.",
+      freeText: "Monthly blood pressure medication, no changes needed.",
       packet: null,
       status: "open",
-      cohortId: "cohort-med-renewal",
-      createdAt: min(2),
+      cohortId: "cohort-med-renewal:async-ready",
+      createdAt: min(5),
+      closedAt: null,
+      escalatedAt: null,
+    },
+    {
+      patient_id: null,
+      id: "c-7f3a",
+      type: "lab-followup",
+      lane: "async-pending",
+      answers: {},
+      redFlags: false,
+      missing: "lab result",
+      freeText:
+        "Diabetic, due for quarterly check. Feeling fine, no new symptoms.",
+      packet: null,
+      status: "open",
+      cohortId: "cohort-lab-followup:async-pending",
+      createdAt: min(4),
+      closedAt: null,
+      escalatedAt: null,
+    },
+    {
+      patient_id: null,
+      id: "c-a3f1",
+      type: "med-renewal",
+      lane: "async-pending",
+      answers: {},
+      redFlags: false,
+      missing: "prescription photo or required documentation",
+      freeText: "Need to renew my inhaler prescription.",
+      packet: null,
+      status: "open",
+      cohortId: "cohort-med-renewal:async-pending",
+      createdAt: min(8),
       closedAt: null,
       escalatedAt: null,
     },
@@ -121,15 +164,17 @@ function QueueCard({
   c,
   isSelected,
   isArriving,
-  cohortSize,
   onClick,
 }: {
   c: Case;
   isSelected: boolean;
   isArriving: boolean;
-  cohortSize: number | null;
   onClick: () => void;
 }) {
+  const preview =
+    c.lane === "async-pending"
+      ? `missing: ${c.missing ?? "patient info"}`
+      : c.freeText?.slice(0, 55) ?? "—";
   return (
     <button
       type="button"
@@ -139,15 +184,11 @@ function QueueCard({
     >
       <div className="row1">
         <span className="type">{TYPE_LABEL[c.type]}</span>
-        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-          {cohortSize !== null && cohortSize > 1 && (
-            <span className="cohort-badge">{cohortSize} similar</span>
-          )}
-          <Badge lane={c.lane} />
-        </div>
+        <span className="meta">{c.id.slice(0, 6)} · {timeAgo(c.createdAt)}</span>
       </div>
       <div className="row2">
-        <span className="subtitle">{laneSubtitle(c)}</span>
+        <Badge lane={c.lane} />
+        <span className="subtitle">{preview}</span>
       </div>
     </button>
   );
@@ -159,46 +200,43 @@ export default function ProviderWorkspace() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [generatingId, setGeneratingId] = useState<string | null>(null);
   const [arriving, setArriving] = useState<Set<string>>(new Set());
-  const [readyOnly, setReadyOnly] = useState(false);
+  const [showClosed, setShowClosed] = useState(false);
+
+  const poll = useCallback(async () => {
+    try {
+      const res = await fetch("/api/case");
+      if (res.ok) {
+        const json = await res.json();
+        const data: Case[] = json.data ?? [];
+        setCases((prev) => {
+          const inactiveIds = new Set(
+            prev
+              .filter((c) => c.status === "closed" || c.status === "escalated")
+              .map((c) => c.id),
+          );
+          const merged = data.map((c) =>
+            inactiveIds.has(c.id)
+              ? { ...c, status: prev.find((x) => x.id === c.id)?.status ?? c.status }
+              : c,
+          );
+          const serverIds = new Set(data.map((c) => c.id));
+          const localOnly = prev.filter((c) => !serverIds.has(c.id));
+          return [...merged, ...localOnly];
+        });
+      }
+    } catch {
+      // server not up yet — keep current state
+    }
+  }, []);
 
   useEffect(() => {
-    async function poll() {
-      try {
-        const res = await fetch("/api/case");
-        if (res.ok) {
-          const json = await res.json();
-          const data: Case[] = json.data ?? [];
-          setCases((prev) => {
-            const inactiveIds = new Set(
-              prev
-                .filter(
-                  (c) => c.status === "closed" || c.status === "escalated",
-                )
-                .map((c) => c.id),
-            );
-            const merged = data.map((c) =>
-              inactiveIds.has(c.id)
-                ? {
-                    ...c,
-                    status: prev.find((x) => x.id === c.id)?.status ?? c.status,
-                  }
-                : c,
-            );
-            // Keep local-only seed cases not yet in the server
-            const serverIds = new Set(data.map((c) => c.id));
-            const localOnly = prev.filter((c) => !serverIds.has(c.id));
-            return [...merged, ...localOnly];
-          });
-        }
-      } catch {
-        // server not up yet — keep current state
-      }
-    }
     poll();
     const id = setInterval(poll, 15_000);
     return () => clearInterval(id);
-  }, []);
+  }, [poll]);
 
+  // Depend only on selectedId — excluding `cases` prevents the 15s poll from
+  // cancelling an in-flight Gemini request every time the case list refreshes.
   useEffect(() => {
     if (!selectedId) return;
     const c = cases.find((x) => x.id === selectedId);
@@ -213,9 +251,9 @@ export default function ProviderWorkspace() {
       .then((res) => res.json())
       .then((json) => {
         if (cancelled) return;
-        const updated: Case = json.data;
+        const packet: string | null = json.data?.packet ?? PACKETS[capturedId] ?? PACKET_FALLBACK;
         setCases((prev) =>
-          prev.map((x) => (x.id === capturedId ? { ...x, packet: updated.packet ?? PACKET_FALLBACK } : x)),
+          prev.map((x) => (x.id === capturedId ? { ...x, packet } : x)),
         );
       })
       .catch(() => {
@@ -234,7 +272,8 @@ export default function ProviderWorkspace() {
       cancelled = true;
       setGeneratingId(null);
     };
-  }, [selectedId, cases]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId]);
 
   function select(id: string) {
     setSelectedId(id);
@@ -318,7 +357,7 @@ export default function ProviderWorkspace() {
       freeText: "Birth control renewal, no issues, no new meds.",
       packet: null,
       status: "open",
-      cohortId: "cohort-med-renewal",
+      cohortId: "cohort-med-renewal:async-ready",
       createdAt: Date.now(),
       closedAt: null,
       escalatedAt: null,
@@ -336,43 +375,51 @@ export default function ProviderWorkspace() {
       markArriving(target.id);
       return prev.map((x) =>
         x.id === target.id
-          ? { ...x, lane: "async-ready", missing: null, createdAt: Date.now() }
+          ? { ...x, lane: "async-ready", missing: null, cohortId: `cohort-${x.type}:async-ready`, createdAt: Date.now() }
           : x,
       );
     });
   }
 
-  const open = cases.filter((c) => c.status === "open");
-  const displayed = readyOnly
-    ? open.filter((c) => c.lane === "async-ready")
-    : open;
-
-  // Group into clusters (cohortId shared by ≥2 displayed async cases) and singletons.
-  // needs-sync cases are never clustered — they require a live visit and shouldn't
-  // be grouped with closeable cases.
-  const cohortMap = new Map<string, Case[]>();
-  for (const c of displayed) {
-    if (c.cohortId && c.lane !== "needs-sync") {
-      const group = cohortMap.get(c.cohortId) ?? [];
-      group.push(c);
-      cohortMap.set(c.cohortId, group);
-    }
-  }
-  const clusters = [...cohortMap.entries()]
-    .filter(([, cs]) => cs.length >= 2)
-    .map(([cohortId, cs]) => ({ cohortId, cases: cs }));
-  const clusteredIds = new Set(
-    clusters.flatMap((cl) => cl.cases.map((c) => c.id)),
+  const open = useMemo(
+    () => cases.filter((c) => c.status === "open"),
+    [cases],
   );
-  const singletons = displayed.filter((c) => !clusteredIds.has(c.id));
+
+  const closed = useMemo(
+    () => cases.filter((c) => c.status !== "open").sort((a, b) => (b.closedAt ?? b.createdAt) - (a.closedAt ?? a.createdAt)),
+    [cases],
+  );
+
+  // Cases closed async (didn't need a live visit) — drives the stats
+  const asyncClosed = useMemo(
+    () => cases.filter((c) => c.status === "closed" && c.lane !== "needs-sync").length,
+    [cases],
+  );
+
+  const displayed = showClosed ? closed : open;
+
+  // One column per lane status; within each column, cases grouped by type
+  const laneColumns = useMemo(() => {
+    return LANE_ORDER.map((lane) => {
+      const laneCases = displayed.filter((c) => c.lane === lane);
+      const typeMap = new Map<CaseType, Case[]>();
+      for (const c of laneCases) {
+        if (!typeMap.has(c.type)) typeMap.set(c.type, []);
+        typeMap.get(c.type)!.push(c);
+      }
+      const typeGroups = [...typeMap.entries()].map(([type, cases]) => ({ type, cases }));
+      return { lane, typeGroups, total: laneCases.length };
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [displayed]);
 
   const selected = cases.find((c) => c.id === selectedId) ?? null;
   const cohortReady = selected?.cohortId
     ? cases.filter(
         (c) =>
           c.cohortId === selected.cohortId &&
-          c.status === "open" &&
-          c.lane === "async-ready",
+          c.status === "open",
       )
     : [];
 
@@ -380,90 +427,111 @@ export default function ProviderWorkspace() {
     <>
       <div className="stats-bar">
         <div className="stat-card">
-          <span className="stat-label">Synchronous slots freed</span>
-          <span className="stat-value">{MOCK_SYNC_SLOTS_FREED}</span>
+          <span className="stat-label">Sync slots freed today</span>
+          <span className="stat-value">{MOCK_SYNC_SLOTS_FREED + asyncClosed}</span>
         </div>
         <div className="stat-card">
           <span className="stat-label">Cases / clinician-hour</span>
-          <span className="stat-value">{MOCK_CASES_PER_HOUR}</span>
+          <span className="stat-value">{(MOCK_CASES_PER_HOUR + asyncClosed * 2).toFixed(1)}</span>
         </div>
       </div>
 
       <div className="layout">
-        <aside className="queue">
-          <div className="queue-head">
-            <span className="queue-title">
-              Queue
-            </span>
-            <span className="count">{open.length} open</span>
+        <div className="queues-bar">
+          <div className="queues-head">
+            <span className="queue-title">Queue</span>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <span className="count">
+                {showClosed ? closed.length : open.length}{" "}
+                {showClosed ? "closed" : "open"}
+              </span>
+              <button
+                type="button"
+                className="btn-filter"
+                onClick={poll}
+                title="Refresh"
+              >↻</button>
+            </div>
           </div>
 
-          <div className="queue-filters">
+          <div className="queues-toggle">
             <button
               type="button"
-              className={`btn-filter ${readyOnly ? "active" : ""}`}
-              onClick={() => setReadyOnly((v) => !v)}
-            >
-              Ready only
-            </button>
+              className={`btn-filter ${!showClosed ? "active" : ""}`}
+              onClick={() => { setShowClosed(false); setSelectedId(null); }}
+            >Open</button>
+            <button
+              type="button"
+              className={`btn-filter ${showClosed ? "active" : ""}`}
+              onClick={() => { setShowClosed(true); setSelectedId(null); }}
+            >Closed</button>
           </div>
 
-          <div>
-            {clusters.map((cluster) => (
-              <div key={cluster.cohortId} className="cluster">
-                <div className="cluster-header">
-                  <span className="cluster-count">
-                    {cluster.cases.length} similar
-                  </span>
-                  <span className="cluster-type">
-                    {" "}
-                    · {TYPE_LABEL[cluster.cases[0].type]}
-                  </span>
+          <div className="queues-cols">
+            {laneColumns.map(({ lane, typeGroups, total }) => (
+              <div key={lane} className="queue-col">
+                <div className={`queue-col-head lane-${lane}`}>
+                  <Badge lane={lane} />
+                  <span className="queue-col-count">{total}</span>
                 </div>
-                {cluster.cases.map((c) => (
-                  <QueueCard
-                    key={c.id}
-                    c={c}
-                    isSelected={c.id === selectedId}
-                    isArriving={arriving.has(c.id)}
-                    cohortSize={cluster.cases.length}
-                    onClick={() => select(c.id)}
-                  />
+                {typeGroups.map(({ type, cases: typeCases }) => (
+                  <div key={type} className="type-group">
+                    <div className="type-group-header">
+                      {TYPE_LABEL[type]}
+                      <span className="type-group-count">{typeCases.length}</span>
+                    </div>
+                    {typeCases.map((c) => (
+                      <QueueCard
+                        key={c.id}
+                        c={c}
+                        isSelected={c.id === selectedId}
+                        isArriving={arriving.has(c.id)}
+                        onClick={() => select(c.id)}
+                      />
+                    ))}
+                  </div>
                 ))}
+                {total === 0 && (
+                  <div className="queue-empty">No cases</div>
+                )}
               </div>
             ))}
-            {singletons.map((c) => (
-              <QueueCard
-                key={c.id}
-                c={c}
-                isSelected={c.id === selectedId}
-                isArriving={arriving.has(c.id)}
-                cohortSize={null}
-                onClick={() => select(c.id)}
-              />
-            ))}
           </div>
-        </aside>
+        </div>
 
-        <main className="detail">
-          {!selected ? (
-            <div className="empty">Select a case from the queue</div>
-          ) : (
-            <CaseDetail
-              key={selected.id}
-              c={selected}
-              generating={generatingId === selected.id}
-              cohortReady={cohortReady}
-              onClose={() => closeCase(selected.id)}
-              onBatchClose={batchClose}
-              onRequestInfo={(msg) => requestInfo(selected.id, msg)}
-              onEscalate={() => escalateCase(selected.id)}
-            />
+        {selected && (
+          <div
+            className="detail-backdrop"
+            onClick={() => setSelectedId(null)}
+            aria-hidden="true"
+          />
+        )}
+        <aside className={`detail${selected ? " open" : ""}`}>
+          {selected && (
+            <div className="detail-inner">
+              <div className="detail-topbar">
+                <button
+                  type="button"
+                  className="btn-detail-close"
+                  onClick={() => setSelectedId(null)}
+                  title="Close panel"
+                >×</button>
+              </div>
+              <CaseDetail
+                key={selected.id}
+                c={selected}
+                generating={generatingId === selected.id}
+                cohortReady={cohortReady}
+                onClose={() => closeCase(selected.id)}
+                onBatchClose={batchClose}
+                onEscalate={() => escalateCase(selected.id)}
+              />
+            </div>
           )}
-        </main>
+        </aside>
       </div>
 
-      <div className="sim">
+      {/* <div className="sim">
         <span className="label">demo controls ↓</span>
         <button type="button" onClick={simArrival}>
           + patient submits
@@ -471,126 +539,7 @@ export default function ProviderWorkspace() {
         <button type="button" onClick={simLab}>
           patient sends lab
         </button>
-      </div>
-    </>
-  );
-}
-
-function ActionButtons({
-  showRequestForm,
-  setShowRequestForm,
-  requestMsg,
-  setRequestMsg,
-  showEscalateConfirm,
-  setShowEscalateConfirm,
-  canRequestInfo = false,
-  onRequestInfo,
-  onEscalate,
-}: {
-  showRequestForm: boolean;
-  setShowRequestForm: (v: boolean) => void;
-  requestMsg: string;
-  setRequestMsg: (v: string) => void;
-  showEscalateConfirm: boolean;
-  setShowEscalateConfirm: (v: boolean) => void;
-  canRequestInfo?: boolean;
-  onRequestInfo: (msg: string) => void;
-  onEscalate: () => void;
-}) {
-  return (
-    <>
-      {!showRequestForm && !showEscalateConfirm && (
-        <div style={{ display: "flex", gap: 8 }}>
-          {canRequestInfo && (
-            <button
-              type="button"
-              className="btn-ghost"
-              onClick={() => setShowRequestForm(true)}
-            >
-              Request info
-            </button>
-          )}
-          <button
-            type="button"
-            className="btn-danger"
-            onClick={() => setShowEscalateConfirm(true)}
-          >
-            Escalate
-          </button>
-        </div>
-      )}
-
-      {showRequestForm && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          <input
-            type="text"
-            placeholder="What do you need from the patient?"
-            value={requestMsg}
-            onChange={(e) => setRequestMsg(e.target.value)}
-            style={{
-              padding: "10px 14px",
-              borderRadius: 8,
-              border: "1px solid var(--line)",
-              fontFamily: "var(--font-plex-sans), sans-serif",
-              fontSize: 14,
-              background: "var(--paper)",
-              color: "var(--ink)",
-            }}
-          />
-          <div style={{ display: "flex", gap: 8 }}>
-            <button
-              type="button"
-              className="btn-ghost"
-              disabled={!requestMsg.trim()}
-              onClick={() => {
-                onRequestInfo(requestMsg.trim());
-                setShowRequestForm(false);
-                setRequestMsg("");
-              }}
-            >
-              Send request
-            </button>
-            <button
-              type="button"
-              className="btn-ghost"
-              onClick={() => {
-                setShowRequestForm(false);
-                setRequestMsg("");
-              }}
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
-
-      {showEscalateConfirm && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          <div className="sync-note">
-            Escalating routes this case to an <strong>urgent live visit</strong>{" "}
-            and removes it from the async queue.
-          </div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <button
-              type="button"
-              className="btn-danger"
-              onClick={() => {
-                onEscalate();
-                setShowEscalateConfirm(false);
-              }}
-            >
-              Confirm escalate
-            </button>
-            <button
-              type="button"
-              className="btn-ghost"
-              onClick={() => setShowEscalateConfirm(false)}
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
+      </div> */}
     </>
   );
 }
@@ -601,7 +550,6 @@ function CaseDetail({
   cohortReady,
   onClose,
   onBatchClose,
-  onRequestInfo,
   onEscalate,
 }: {
   c: Case;
@@ -609,35 +557,56 @@ function CaseDetail({
   cohortReady: Case[];
   onClose: () => void;
   onBatchClose: (ids: string[]) => void;
-  onRequestInfo: (message: string) => void;
   onEscalate: () => void;
 }) {
-  const [showRequestForm, setShowRequestForm] = useState(false);
-  const [requestMsg, setRequestMsg] = useState("");
   const [showEscalateConfirm, setShowEscalateConfirm] = useState(false);
   const [showBatchConfirm, setShowBatchConfirm] = useState(false);
   const [attestName, setAttestName] = useState(ATTEST_CLINICIAN);
+  const defaultMsg =
+    PATIENT_MESSAGES[c.type] ??
+    '"Your care team has reviewed your request and will follow up shortly."';
+  const [editableMsg, setEditableMsg] = useState(defaultMsg);
 
   return (
     <>
       <div className="detail-header">
-        <h1>
-          {TYPE_LABEL[c.type]}{" "}
-          <span className="detail-case-id">· case {c.id}</span>
-        </h1>
-        <Badge lane={c.lane} />
+        <h1>{TYPE_LABEL[c.type]}</h1>
+        <div className="detail-sub">
+          <span className="detail-case-id">{c.id}</span>
+          <span className="detail-dot">·</span>
+          <span className="detail-time">submitted {timeAgo(c.createdAt)} ago</span>
+          <span className="detail-dot">·</span>
+          <Badge lane={c.lane} />
+        </div>
       </div>
 
       <div className="panel">
         <h3>Intake</h3>
-        <p className="intake-text">{c.freeText}</p>
-        <div className="intake-checks">
-          {!c.redFlags && <span className="check-ok">✓ No red flags</span>}
-          {c.lane === "async-ready" && (
-            <span className="check-ok">✓ Lab attached</span>
+        <div className="intake-kv">
+          <div className="intake-row">
+            <span className="intake-k">Request type</span>
+            <span className="intake-v">{TYPE_LABEL[c.type]}</span>
+          </div>
+          <div className="intake-row">
+            <span className="intake-k">Red-flag screen</span>
+            <span className="intake-v">
+              {c.redFlags ? (
+                <span className="check-bad">⚠ tripped — {c.freeText?.slice(0, 50)}</span>
+              ) : (
+                <span className="check-ok">✓ No red flags</span>
+              )}
+            </span>
+          </div>
+          {c.missing && (
+            <div className="intake-row">
+              <span className="intake-k">Missing</span>
+              <span className="intake-v check-pending">⏳ {c.missing}</span>
+            </div>
           )}
-          {c.redFlags && <span className="check-bad">⚠ Red flag detected</span>}
-          {c.missing && <span className="check-pending">⏳ {c.missing}</span>}
+          <div className="intake-row">
+            <span className="intake-k">Patient note</span>
+            <span className="intake-v intake-note">{c.freeText || "—"}</span>
+          </div>
         </div>
       </div>
 
@@ -698,21 +667,24 @@ function CaseDetail({
                   <span className="spinner" /> generating decision packet…
                 </span>
               ) : (
-                c.packet
+                <pre className="packet-bullets">{c.packet}</pre>
               )}
             </div>
           </div>
 
-          {c.lane === "async-ready" && !generating && c.packet && (
+          {(c.lane === "async-ready" || c.lane === "async-pending") &&
+            !generating && !!c.packet && (
             <div className="panel dashed">
               <h3>
                 Patient will receive{" "}
-                <span className="read-only-tag">templated · read-only</span>
+                <span className="read-only-tag">editable</span>
               </h3>
-              <p className="patient-msg">
-                {PATIENT_MESSAGES[c.type] ??
-                  '"Your care team has reviewed your request and will follow up shortly."'}
-              </p>
+              <textarea
+                className="patient-msg-edit"
+                value={editableMsg}
+                onChange={(e) => setEditableMsg(e.target.value)}
+                rows={3}
+              />
             </div>
           )}
 
@@ -725,53 +697,84 @@ function CaseDetail({
                 </div>
               </div>
               <div className="panel actions">
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  <button type="button" className="btn-close" disabled>
-                    Close case · blocked
-                  </button>
-                  <ActionButtons
-                    showRequestForm={showRequestForm}
-                    setShowRequestForm={setShowRequestForm}
-                    requestMsg={requestMsg}
-                    setRequestMsg={setRequestMsg}
-                    showEscalateConfirm={showEscalateConfirm}
-                    setShowEscalateConfirm={setShowEscalateConfirm}
-                    canRequestInfo
-                    onRequestInfo={onRequestInfo}
-                    onEscalate={onEscalate}
-                  />
-                </div>
+                {!showEscalateConfirm && (
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <button type="button" className="btn-close" disabled>
+                      Close case · blocked
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-danger"
+                      onClick={() => setShowEscalateConfirm(true)}
+                    >
+                      Escalate
+                    </button>
+                  </div>
+                )}
+                {showEscalateConfirm && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    <div className="sync-note">
+                      Escalating routes this case to an <strong>urgent live visit</strong>{" "}
+                      and removes it from the async queue.
+                    </div>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button
+                        type="button"
+                        className="btn-danger"
+                        onClick={() => { onEscalate(); setShowEscalateConfirm(false); }}
+                      >
+                        Confirm escalate
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-ghost"
+                        onClick={() => setShowEscalateConfirm(false)}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </>
           ) : (
             <div className="panel actions">
-              <div className="attest-row">
-                <input
-                  type="text"
-                  className="attest-input"
-                  value={attestName}
-                  onChange={(e) => setAttestName(e.target.value)}
-                  placeholder="Clinician name"
-                />
-                <button
-                  type="button"
-                  className="btn-close"
-                  disabled={!attestName.trim()}
-                  onClick={onClose}
-                >
-                  ✓ Attest &amp; close
-                </button>
-                {cohortReady.length >= 2 && !showBatchConfirm && (
+              {!showBatchConfirm && !showEscalateConfirm && (
+                <div className="attest-row">
+                  <input
+                    type="text"
+                    className="attest-input"
+                    value={attestName}
+                    onChange={(e) => setAttestName(e.target.value)}
+                    placeholder="Clinician name"
+                  />
                   <button
                     type="button"
-                    className="btn-batch"
+                    className="btn-close"
                     disabled={!attestName.trim()}
-                    onClick={() => setShowBatchConfirm(true)}
+                    onClick={onClose}
                   >
-                    Close all {cohortReady.length} similar
+                    ✓ Attest &amp; close
                   </button>
-                )}
-              </div>
+                  {cohortReady.length >= 2 && (
+                    <button
+                      type="button"
+                      className="btn-batch"
+                      disabled={!attestName.trim()}
+                      onClick={() => setShowBatchConfirm(true)}
+                    >
+                      Close all {cohortReady.length} similar
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="btn-danger"
+                    onClick={() => setShowEscalateConfirm(true)}
+                  >
+                    Escalate
+                  </button>
+                </div>
+              )}
 
               {showBatchConfirm && (
                 <div className="batch-confirm">
@@ -803,16 +806,30 @@ function CaseDetail({
                 </div>
               )}
 
-              <ActionButtons
-                showRequestForm={showRequestForm}
-                setShowRequestForm={setShowRequestForm}
-                requestMsg={requestMsg}
-                setRequestMsg={setRequestMsg}
-                showEscalateConfirm={showEscalateConfirm}
-                setShowEscalateConfirm={setShowEscalateConfirm}
-                onRequestInfo={onRequestInfo}
-                onEscalate={onEscalate}
-              />
+              {showEscalateConfirm && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div className="sync-note">
+                    Escalating routes this case to an <strong>urgent live visit</strong>{" "}
+                    and removes it from the async queue.
+                  </div>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button
+                      type="button"
+                      className="btn-danger"
+                      onClick={() => { onEscalate(); setShowEscalateConfirm(false); }}
+                    >
+                      Confirm escalate
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-ghost"
+                      onClick={() => setShowEscalateConfirm(false)}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </>

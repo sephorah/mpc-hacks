@@ -1,161 +1,80 @@
-import { Case, CaseType, Lane } from "@/types";
-import {
-  GoogleGenAI,
-  ThinkingLevel,
-} from '@google/genai';
+import { Case, CaseType } from "@/types";
+import { GoogleGenAI } from "@google/genai";
 
+const PROMPTS: Record<CaseType, (c: Case) => string> = {
+  "med-renewal": (c) =>
+    `You are a clinical decision-support assistant reviewing a prescription renewal request.
 
-const GEMINI_MODEL = "gemini-1.5-flash";
+Patient intake: ${c.freeText}
+Red flags detected: ${c.redFlags}
+Missing information: ${c.missing ?? "none"}
 
-interface GeminiResponse {
-  type: CaseType;
-  lane: Lane;
-  redFlags: boolean;
-  missing: string | null;
-  freeText: string;
-}
+Write a decision packet for the prescribing clinician as exactly 4 bullet points. Start each bullet with •.
+• Complaint: chief complaint and current medication context
+• Assessment: renewal appropriateness — stable indications, contraindications, side-effect check
+• Action: approve renewal / hold pending info / escalate
+• Flag: green (routine renewal) | yellow (review needed) | red (urgent concern)
 
-export async function convertFormToCase(
-  formData: Record<string, string>,
-  patientId: string
-): Promise<Case> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    throw new Error("GEMINI_API_KEY is not set");
-  }
+Each bullet ≤35 words. No prose, no intro sentence, no markdown headers. Clinician-facing.`,
 
-  const prompt = buildPrompt(formData);
+  "lab-followup": (c) =>
+    `You are a clinical decision-support assistant reviewing a lab follow-up case.
 
-  const ai = new GoogleGenAI({
-    apiKey: process.env['GEMINI_API_KEY'],
-  });
-  const config = {
-    thinkingConfig: {
-      thinkingLevel: ThinkingLevel.MEDIUM,
-    },
-  };
-  const model = 'gemini-2.0-flash';
-  const contents = [
-    {
-      role: 'user',
-      parts: [
-        {
-          text: prompt
-        },
-      ],
-    },
-  ];
+Patient intake: ${c.freeText}
+Red flags detected: ${c.redFlags}
+Missing information: ${c.missing ?? "none"}
 
-  const response = await ai.models.generateContentStream({
-    model,
-    config,
-    contents,
-  });
-  
-  let content = "";
-  for await (const chunk of response) {
-    if (chunk.text) {
-      console.log(chunk.text);
-      content += chunk.text;
-    }
-  }
+Write a decision packet for the reviewing clinician as exactly 4 bullet points. Start each bullet with •.
+• Labs: what is being followed up and the clinical context
+• Results: what results suggest (if mentioned) or whether they are missing
+• Action: acknowledge normal / flag abnormal / request missing results / escalate
+• Flag: green (results in normal range) | yellow (borderline or missing) | red (critical value)
 
-  if (!content) {
-    throw new Error("No content returned from Gemini");
-  }
+Each bullet ≤35 words. No prose, no intro sentence, no markdown headers. Clinician-facing.`,
 
-  const parsed: GeminiResponse = JSON.parse(content);
+  "chronic-condition-check-in": (c) =>
+    `You are a clinical decision-support assistant reviewing a chronic condition check-in.
 
-  return {
-    patient_id: patientId,
-    id: crypto.randomUUID(),
-    type: parsed.type,
-    lane: parsed.lane,
-    answers: {},
-    redFlags: parsed.redFlags,
-    missing: parsed.missing,
-    freeText: parsed.freeText,
-    packet: null,
-    status: "open",
-    cohortId: null,
-    createdAt: Date.now(),
-    closedAt: null,
-    escalatedAt: null,
-  };
-}
+Patient intake: ${c.freeText}
+Red flags detected: ${c.redFlags}
+Missing information: ${c.missing ?? "none"}
+
+Write a decision packet for the reviewing clinician as exactly 4 bullet points. Start each bullet with •.
+• Condition: condition being monitored and current patient-reported status
+• Measurements: whether recent data supports the current care plan
+• Action: continue plan / adjust medication / request measurements / escalate
+• Flag: green (stable, on-target) | yellow (borderline or measurements missing) | red (out-of-control or worsening)
+
+Each bullet ≤35 words. No prose, no intro sentence, no markdown headers. Clinician-facing.`,
+
+  "general-enquiry": (c) =>
+    `You are a clinical decision-support assistant reviewing a general patient enquiry.
+
+Patient intake: ${c.freeText}
+Red flags detected: ${c.redFlags}
+
+Write a decision packet for the reviewing clinician as exactly 4 bullet points. Start each bullet with •.
+• Complaint: chief complaint and patient concern
+• Channel: whether the concern can be addressed async or requires a live visit
+• Action: suggested next step
+• Flag: green (informational / low acuity) | yellow (needs provider input) | red (urgent)
+
+Each bullet ≤35 words. No prose, no intro sentence, no markdown headers. Clinician-facing.`,
+};
 
 export async function generatePacket(caseObj: Case): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error("GEMINI_API_KEY is not set");
 
   const ai = new GoogleGenAI({ apiKey });
-  const prompt = `You are a clinical decision-support assistant. Generate a structured decision packet for a care provider reviewing this case.
+  const prompt = PROMPTS[caseObj.type](caseObj);
 
-Case type: ${caseObj.type}
-Patient summary: ${caseObj.freeText}
-Red flags: ${caseObj.redFlags}
-Lane: ${caseObj.lane}
-
-Respond with a concise packet (≤150 words) covering:
-1. Chief complaint
-2. Suggested action
-3. Flag level (green / yellow / red)
-
-Write in plain prose, no markdown. Clinician-facing tone.`;
-
-  const response = await ai.models.generateContentStream({
-    model: "gemini-2.0-flash",
+  const response = await ai.models.generateContent({
+    model: "gemini-2.5-flash",
     contents: [{ role: "user", parts: [{ text: prompt }] }],
   });
 
-  let content = "";
-  for await (const chunk of response) {
-    if (chunk.text) content += chunk.text;
-  }
-
-  if (!content) throw new Error("No content from Gemini");
-  return content.trim();
-}
-
-function buildPrompt(formData: Record<string, string>): string {
-  const formDataStr = JSON.stringify(formData, null, 2);
-
-  return `You are a medical case triage system. Analyze the patient intake form data and generate a structured case object.
-
-Patient Form Data:
-${formDataStr}
-
-Based on this form data, respond with ONLY a valid JSON object (no markdown formatting, no extra text) with these exact fields:
-
-{
-  "type": "renewal" | "lab-followup",
-  "lane": "needs-sync" | "async-pending" | "async-ready",
-  "redFlags": boolean,
-  "missing": string | null,
-  "freeText": string
-}
-
-Field definitions:
-- type: The case type (renewal for prescription renewals, lab-followup for lab-related cases)
-- lane: 
-  * "needs-sync": Red flag / urgent - requires live visit
-  * "async-pending": Closeable async but missing something (lab results, documentation, etc.)
-  * "async-ready": Complete and ready for provider to close
-- redFlags: true if any urgent/critical flags are present
-- missing: What's blocking closure (e.g., "lab result", "provider signature"), or null if nothing is missing
-- freeText: A concise summary of the case for the provider (2-3 sentences)
-
-Low-priority cases such as simple symptoms like coughs or headaches should fall into the async category.
-Cases with considerable nuance that require personal communication to determine the correct course of action should fall into the sync category.
-This includes situations such as mental health enquiries, checkups and follow ups with a provider, and situations where text responses do not remedy the situation.
-
-Async Examples:
-"I need to renew my routine prescription for my Ventolin asthma inhaler. My asthma has been completely stable for the last six months, I haven't had any sudden flare-ups or changes in my breathing, and I'm not experiencing any new side effects. My current pharmacy fax number is already saved on file in my app profile."
-"I recently had my routine fasting blood work done last Tuesday for my annual cholesterol monitoring check, and I see the official lab report PDF has already successfully uploaded to my account here. I just need a provider to review it and let me know if my current Lipitor dose is still working as intended."
-
-Sync Examples:
-"I need a standard renewal on my heart medication, but lately, I've been feeling an uncomfortable tightness and heavy pressure in my chest. It started a couple of days ago and it's making me a bit short of breath even when I'm just sitting on the couch trying to relax."
-"I'm looking to review my recent blood tests regarding my chronic fatigue, but I also really need a full checkup session with my provider. My anxiety and overall mental health have been declining severely alongside my physical energy over the past month, and text messages aren't going to cut it for this conversation."
-
-Respond with ONLY the JSON object, nothing else.`;
+  const text = response.text?.trim();
+  if (!text) throw new Error("No content from Gemini");
+  return text;
 }
