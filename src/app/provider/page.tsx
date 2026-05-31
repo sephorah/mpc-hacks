@@ -241,7 +241,7 @@ export default function ProviderWorkspace() {
     if (!selectedId) return;
     const c = cases.find((x) => x.id === selectedId);
     if (!c || c.packet) return;
-    if (c.lane !== "async-ready" && c.lane !== "async-pending") return;
+    if (c.status !== "open") return;
 
     setGeneratingId(selectedId);
     const capturedId = selectedId;
@@ -610,6 +610,41 @@ function CaseDetail({
         </div>
       </div>
 
+      {c.status === "open" && (
+        <div className="panel dashed">
+          <h3 style={{ display: "flex", alignItems: "center", gap: 5 }}>
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+              style={{ flexShrink: 0 }}
+            >
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+              <line x1="16" y1="13" x2="8" y2="13" />
+              <line x1="16" y1="17" x2="8" y2="17" />
+              <polyline points="10 9 9 9 8 9" />
+            </svg>
+            Decision packet · <span className="ai-tag">AI GENERATED</span>
+          </h3>
+          <div className="packet">
+            {generating || !c.packet ? (
+              <span className="gen">
+                <span className="spinner" /> generating decision packet…
+              </span>
+            ) : (
+              <pre className="packet-bullets">{c.packet}</pre>
+            )}
+          </div>
+        </div>
+      )}
+
       {c.status === "closed" ? (
         <div className="panel">
           <span className="closed-stamp">
@@ -639,39 +674,6 @@ function CaseDetail({
         </div>
       ) : (
         <>
-          <div className="panel dashed">
-            <h3 style={{ display: "flex", alignItems: "center", gap: 5 }}>
-              <svg
-                width="12"
-                height="12"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-                style={{ flexShrink: 0 }}
-              >
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                <polyline points="14 2 14 8 20 8" />
-                <line x1="16" y1="13" x2="8" y2="13" />
-                <line x1="16" y1="17" x2="8" y2="17" />
-                <polyline points="10 9 9 9 8 9" />
-              </svg>
-              Decision packet · <span className="ai-tag">AI GENERATED</span>
-            </h3>
-            <div className="packet">
-              {generating || !c.packet ? (
-                <span className="gen">
-                  <span className="spinner" /> generating decision packet…
-                </span>
-              ) : (
-                <pre className="packet-bullets">{c.packet}</pre>
-              )}
-            </div>
-          </div>
-
           {(c.lane === "async-ready" || c.lane === "async-pending") &&
             !generating && !!c.packet && (
             <div className="panel dashed">
