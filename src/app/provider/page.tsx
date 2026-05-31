@@ -632,12 +632,12 @@ function CaseDetail({
               <line x1="16" y1="17" x2="8" y2="17" />
               <polyline points="10 9 9 9 8 9" />
             </svg>
-            Decision packet · <span className="ai-tag">AI GENERATED</span>
+            Decision summary · <span className="ai-tag">AI GENERATED</span>
           </h3>
           <div className="packet">
             {generating || !c.packet ? (
               <span className="gen">
-                <span className="spinner" /> generating decision packet…
+                <span className="spinner" /> generating summary…
               </span>
             ) : (
               <pre className="packet-bullets">{c.packet}</pre>
@@ -667,10 +667,45 @@ function CaseDetail({
             is preserved so the clinician starts with full context; no time lost
             re-collecting.
           </div>
-          <div style={{ marginTop: 14 }}>
-            <button type="button" className="btn-ghost">
-              → Booked for live visit
-            </button>
+          <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
+            {!showEscalateConfirm && (
+              <>
+                <button type="button" className="btn-ghost">
+                  → Booked for live visit
+                </button>
+                <button
+                  type="button"
+                  className="btn-danger"
+                  onClick={() => setShowEscalateConfirm(true)}
+                >
+                  Escalate
+                </button>
+              </>
+            )}
+            {showEscalateConfirm && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <div className="sync-note">
+                  Escalating flags this case for <strong>priority urgent care</strong> and
+                  alerts the on-call team immediately.
+                </div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button
+                    type="button"
+                    className="btn-danger"
+                    onClick={() => { onEscalate(); setShowEscalateConfirm(false); }}
+                  >
+                    Confirm escalate
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-ghost"
+                    onClick={() => setShowEscalateConfirm(false)}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       ) : (
