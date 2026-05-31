@@ -2,17 +2,15 @@ import { createServer } from "node:http";
 import next from "next";
 import { State } from "./state";
 
-declare global {
-    var state: State;
-}
-
 function initState() {
-    global.state = new State();
+    // state is initialized in state.ts when first imported
 }
 
-export function getState() {
-    return global.state;
-}
+import { loadEnvConfig } from "@next/env";
+import { loadEnvFile } from "node:process";
+loadEnvFile(".env.local")
+loadEnvConfig(process.cwd());
+
 
 process.env.NEXT_RUNTIME = 'nodejs';
 
