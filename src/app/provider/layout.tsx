@@ -30,9 +30,6 @@ export default function ProviderLayout({ children }: { children: ReactNode }) {
         <div className="logo">Dialogue</div>
         <div className="crumb">Care Provider Workspace</div>
         <div className="greeting">Hi, Dr. A. Moreau</div>
-        <div className="clock">
-          <span className="pulse" aria-hidden="true" /> polling every 15 s
-        </div>
       </header>
       {children}
     </div>
