@@ -542,19 +542,21 @@ function CaseDetail({
                     <span className="name">Dr. [clinician]</span>
                   </span>
                 </div>
-                <button type="button" className="btn-close" disabled>
-                  Close case · blocked until lab arrives
-                </button>
-                <ActionButtons
-                  showRequestForm={showRequestForm}
-                  setShowRequestForm={setShowRequestForm}
-                  requestMsg={requestMsg}
-                  setRequestMsg={setRequestMsg}
-                  showEscalateConfirm={showEscalateConfirm}
-                  setShowEscalateConfirm={setShowEscalateConfirm}
-                  onRequestInfo={onRequestInfo}
-                  onEscalate={onEscalate}
-                />
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <button type="button" className="btn-close" disabled>
+                    Close case · blocked
+                  </button>
+                  <ActionButtons
+                    showRequestForm={showRequestForm}
+                    setShowRequestForm={setShowRequestForm}
+                    requestMsg={requestMsg}
+                    setRequestMsg={setRequestMsg}
+                    showEscalateConfirm={showEscalateConfirm}
+                    setShowEscalateConfirm={setShowEscalateConfirm}
+                    onRequestInfo={onRequestInfo}
+                    onEscalate={onEscalate}
+                  />
+                </div>
               </div>
             </>
           ) : (
@@ -571,24 +573,26 @@ function CaseDetail({
                   <span className="name">Dr. A. Moreau, MD · #QC-88421</span>
                 </span>
               </div>
-              <button
-                type="button"
-                className="btn-close"
-                disabled={!attested}
-                onClick={onClose}
-              >
-                Attest &amp; close
-              </button>
-              <ActionButtons
-                showRequestForm={showRequestForm}
-                setShowRequestForm={setShowRequestForm}
-                requestMsg={requestMsg}
-                setRequestMsg={setRequestMsg}
-                showEscalateConfirm={showEscalateConfirm}
-                setShowEscalateConfirm={setShowEscalateConfirm}
-                onRequestInfo={onRequestInfo}
-                onEscalate={onEscalate}
-              />
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  className="btn-close"
+                  disabled={!attested}
+                  onClick={onClose}
+                >
+                  Attest &amp; close
+                </button>
+                <ActionButtons
+                  showRequestForm={showRequestForm}
+                  setShowRequestForm={setShowRequestForm}
+                  requestMsg={requestMsg}
+                  setRequestMsg={setRequestMsg}
+                  showEscalateConfirm={showEscalateConfirm}
+                  setShowEscalateConfirm={setShowEscalateConfirm}
+                  onRequestInfo={onRequestInfo}
+                  onEscalate={onEscalate}
+                />
+              </div>
             </div>
           )}
         </>
