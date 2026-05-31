@@ -642,12 +642,12 @@ function CaseDetail({
               <line x1="16" y1="17" x2="8" y2="17" />
               <polyline points="10 9 9 9 8 9" />
             </svg>
-            Decision summary · <span className="ai-tag">AI GENERATED</span>
+            Decision packet · <span className="ai-tag">AI GENERATED</span>
           </h3>
           <div className="packet">
             {generating || !c.packet ? (
               <span className="gen">
-                <span className="spinner" /> generating summary…
+                <span className="spinner" /> generating decision packet…
               </span>
             ) : (
               <pre className="packet-bullets">{c.packet}</pre>
