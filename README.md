@@ -26,7 +26,7 @@ Google Gemini summarises the patient's intake into a short decision brief. If th
 
 - **Framework:** Next.js 16 + React 19, TypeScript throughout
 - **Styling:** Tailwind CSS v4
-- **Server:** Custom `tsx`-based server (`src/server.ts`)
+- **Server:** Custom `tsx`-based server 
 - **AI:** Google Gemini 2.5 Flash via `@google/genai`
 - **State:** In-memory
 - **Linting / formatting:** Biome
@@ -68,35 +68,6 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
-
----
-
-## Routes
-
-| Route | Surface | Description |
-|---|---|---|
-| `/` | Root | App entry point |
-| `/patient` | Patient | Landing + intake flow |
-| `/provider` | Provider | Kanban queue + case detail panel |
-| `GET /api/case` | API | All cases (open by default) |
-| `GET /api/case/[id]` | API | Single case by ID |
-| `POST /api/intake` | API | Patient submits — classifies, inserts, returns |
-| `POST /api/case/[id]/packet` | API | Trigger AI decision packet (or mock) |
-| `POST /api/case/[id]/close` | API | Provider attests and closes case |
-| `POST /api/init_patient` | API | Initialize a patient session |
-
----
-
-## Key source files
-
-```
-src/
-├── state.ts          # In-memory case store (Map<string, Case>)
-├── gemini.ts         # Gemini integration + deterministic fallback
-├── server.ts         # Custom Express-style server entry
-└── lib/
-    └── types.ts      # Shared Case, CaseType, Lane types
-```
 
 ---
 
