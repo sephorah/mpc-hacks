@@ -18,6 +18,7 @@ export type Case = {
   freeText: string; // LLM digests this
   packet: string | null; // LLM summary; null until provider opens
   status: "open" | "closed" | "escalated";
+  cohortId: string | null;
   createdAt: number;
   closedAt: number | null;
   escalatedAt: number | null;
