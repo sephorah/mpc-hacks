@@ -47,6 +47,7 @@ function makeSeed(): Case[] {
       status: "open",
       createdAt: min(4),
       closedAt: null,
+      escalatedAt: null,
     },
     {
       id: "c-2b91",
@@ -60,6 +61,7 @@ function makeSeed(): Case[] {
       status: "open",
       createdAt: min(6),
       closedAt: null,
+      escalatedAt: null,
     },
     {
       id: "c-d04e",
@@ -74,6 +76,7 @@ function makeSeed(): Case[] {
       status: "open",
       createdAt: min(2),
       closedAt: null,
+      escalatedAt: null,
     },
   ];
 }
@@ -98,7 +101,7 @@ export default function ProviderWorkspace() {
   const [attested, setAttested] = useState(false);
   const [arriving, setArriving] = useState<Set<string>>(new Set());
 
-  // Poll real API once it exists; preserve any locally-closed cases on merge.
+  // Poll real API once it exists; preserve locally-closed/escalated cases on merge.
   useEffect(() => {
     async function poll() {
       try {
@@ -106,11 +109,20 @@ export default function ProviderWorkspace() {
         if (res.ok) {
           const data: Case[] = await res.json();
           setCases((prev) => {
-            const closedIds = new Set(
-              prev.filter((c) => c.status === "closed").map((c) => c.id),
+            const inactiveIds = new Set(
+              prev
+                .filter(
+                  (c) => c.status === "closed" || c.status === "escalated",
+                )
+                .map((c) => c.id),
             );
             return data.map((c) =>
-              closedIds.has(c.id) ? { ...c, status: "closed" } : c,
+              inactiveIds.has(c.id)
+                ? {
+                    ...c,
+                    status: prev.find((x) => x.id === c.id)?.status ?? c.status,
+                  }
+                : c,
             );
           });
         }
@@ -160,6 +172,26 @@ export default function ProviderWorkspace() {
     );
   }
 
+  function requestInfo(id: string, message: string) {
+    setCases((prev) =>
+      prev.map((x) =>
+        x.id === id
+          ? { ...x, lane: "async-pending" as const, missing: message }
+          : x,
+      ),
+    );
+  }
+
+  function escalateCase(id: string) {
+    setCases((prev) =>
+      prev.map((x) =>
+        x.id === id
+          ? { ...x, status: "escalated" as const, escalatedAt: Date.now() }
+          : x,
+      ),
+    );
+  }
+
   function markArriving(id: string) {
     setArriving((prev) => new Set(prev).add(id));
     setTimeout(() => {
@@ -185,6 +217,7 @@ export default function ProviderWorkspace() {
       status: "open",
       createdAt: Date.now(),
       closedAt: null,
+      escalatedAt: null,
     };
     setCases((prev) => [c, ...prev]);
     markArriving(id);
@@ -254,6 +287,8 @@ export default function ProviderWorkspace() {
               attested={attested}
               onAttestChange={setAttested}
               onClose={() => closeCase(selected.id)}
+              onRequestInfo={(msg) => requestInfo(selected.id, msg)}
+              onEscalate={() => escalateCase(selected.id)}
             />
           )}
         </main>
@@ -272,19 +307,139 @@ export default function ProviderWorkspace() {
   );
 }
 
+function ActionButtons({
+  showRequestForm,
+  setShowRequestForm,
+  requestMsg,
+  setRequestMsg,
+  showEscalateConfirm,
+  setShowEscalateConfirm,
+  onRequestInfo,
+  onEscalate,
+}: {
+  showRequestForm: boolean;
+  setShowRequestForm: (v: boolean) => void;
+  requestMsg: string;
+  setRequestMsg: (v: string) => void;
+  showEscalateConfirm: boolean;
+  setShowEscalateConfirm: (v: boolean) => void;
+  onRequestInfo: (msg: string) => void;
+  onEscalate: () => void;
+}) {
+  return (
+    <>
+      {showRequestForm ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <input
+            type="text"
+            placeholder="What do you need from the patient?"
+            value={requestMsg}
+            onChange={(e) => setRequestMsg(e.target.value)}
+            style={{
+              padding: "10px 14px",
+              borderRadius: 8,
+              border: "1px solid var(--line)",
+              fontFamily: "var(--font-plex-sans), sans-serif",
+              fontSize: 14,
+              background: "var(--paper)",
+              color: "var(--ink)",
+            }}
+          />
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              type="button"
+              className="btn-ghost"
+              disabled={!requestMsg.trim()}
+              onClick={() => {
+                onRequestInfo(requestMsg.trim());
+                setShowRequestForm(false);
+                setRequestMsg("");
+              }}
+            >
+              Send request
+            </button>
+            <button
+              type="button"
+              className="btn-ghost"
+              onClick={() => {
+                setShowRequestForm(false);
+                setRequestMsg("");
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          type="button"
+          className="btn-ghost"
+          onClick={() => setShowRequestForm(true)}
+        >
+          Request info
+        </button>
+      )}
+
+      {showEscalateConfirm ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div className="sync-note">
+            Escalating routes this case to an <strong>urgent live visit</strong>{" "}
+            and removes it from the async queue.
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              type="button"
+              className="btn-danger"
+              onClick={() => {
+                onEscalate();
+                setShowEscalateConfirm(false);
+              }}
+            >
+              Confirm escalate
+            </button>
+            <button
+              type="button"
+              className="btn-ghost"
+              onClick={() => setShowEscalateConfirm(false)}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          type="button"
+          className="btn-danger"
+          onClick={() => setShowEscalateConfirm(true)}
+        >
+          Escalate
+        </button>
+      )}
+    </>
+  );
+}
+
 function CaseDetail({
   c,
   generating,
   attested,
   onAttestChange,
   onClose,
+  onRequestInfo,
+  onEscalate,
 }: {
   c: Case;
   generating: boolean;
   attested: boolean;
   onAttestChange: (v: boolean) => void;
   onClose: () => void;
+  onRequestInfo: (message: string) => void;
+  onEscalate: () => void;
 }) {
+  const [showRequestForm, setShowRequestForm] = useState(false);
+  const [requestMsg, setRequestMsg] = useState("");
+  const [showEscalateConfirm, setShowEscalateConfirm] = useState(false);
+
   return (
     <>
       <h1>{TYPE_LABEL[c.type]}</h1>
@@ -319,6 +474,12 @@ function CaseDetail({
         <div className="panel">
           <span className="closed-stamp">
             ✓ Closed async — {ATTEST_CLINICIAN}
+          </span>
+        </div>
+      ) : c.status === "escalated" ? (
+        <div className="panel">
+          <span className="closed-stamp" style={{ color: "var(--sync-fg)" }}>
+            ⚡ Escalated — routed to urgent live visit
           </span>
         </div>
       ) : c.lane === "needs-sync" ? (
@@ -375,6 +536,16 @@ function CaseDetail({
                 <button type="button" className="btn-close" disabled>
                   Close case · blocked until lab arrives
                 </button>
+                <ActionButtons
+                  showRequestForm={showRequestForm}
+                  setShowRequestForm={setShowRequestForm}
+                  requestMsg={requestMsg}
+                  setRequestMsg={setRequestMsg}
+                  showEscalateConfirm={showEscalateConfirm}
+                  setShowEscalateConfirm={setShowEscalateConfirm}
+                  onRequestInfo={onRequestInfo}
+                  onEscalate={onEscalate}
+                />
               </div>
             </>
           ) : (
@@ -399,6 +570,16 @@ function CaseDetail({
               >
                 Attest &amp; close
               </button>
+              <ActionButtons
+                showRequestForm={showRequestForm}
+                setShowRequestForm={setShowRequestForm}
+                requestMsg={requestMsg}
+                setRequestMsg={setRequestMsg}
+                showEscalateConfirm={showEscalateConfirm}
+                setShowEscalateConfirm={setShowEscalateConfirm}
+                onRequestInfo={onRequestInfo}
+                onEscalate={onEscalate}
+              />
             </div>
           )}
         </>
