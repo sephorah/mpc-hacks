@@ -312,10 +312,12 @@ export default function ProviderWorkspace() {
     ? open.filter((c) => c.lane === "async-ready")
     : open;
 
-  // Group into clusters (cohortId shared by ≥2 displayed cases) and singletons
+  // Group into clusters (cohortId shared by ≥2 displayed async cases) and singletons.
+  // needs-sync cases are never clustered — they require a live visit and shouldn't
+  // be grouped with closeable cases.
   const cohortMap = new Map<string, Case[]>();
   for (const c of displayed) {
-    if (c.cohortId) {
+    if (c.cohortId && c.lane !== "needs-sync") {
       const group = cohortMap.get(c.cohortId) ?? [];
       group.push(c);
       cohortMap.set(c.cohortId, group);
@@ -356,20 +358,6 @@ export default function ProviderWorkspace() {
         <aside className="queue">
           <div className="queue-head">
             <span className="queue-title">
-              <svg
-                width="13"
-                height="13"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
-                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-                <path d="M3 3v5h5" />
-              </svg>
               Queue
             </span>
             <span className="count">{open.length} open</span>
@@ -667,7 +655,7 @@ function CaseDetail({
                 <line x1="16" y1="17" x2="8" y2="17" />
                 <polyline points="10 9 9 9 8 9" />
               </svg>
-              Decision packet · <span className="ai-tag">LLM</span>
+              Decision packet · <span className="ai-tag">AI GENERATED</span>
             </h3>
             <div className="packet">
               {generating || !c.packet ? (
