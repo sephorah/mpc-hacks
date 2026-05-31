@@ -4,7 +4,37 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository status
 
-This repository is a hackathon project for **MPC Hacks 2026** (Polytechnique Montréal, May 30–31, 2026). At present it contains only the challenge brief and hacker manual under `docs/` — **no application code, build system, or tests exist yet**. There are no commands to run; any tooling will be introduced as the project scaffolds.
+This repository is a hackathon project for **MPC Hacks 2026** (Polytechnique Montréal, May 30–31, 2026). The app is **fully scaffolded and running** — both patient and provider surfaces are built.
+
+### Commands
+
+```bash
+npm run dev      # start dev server (uses src/server.ts, not next dev)
+npm run lint     # Biome check
+npm run format   # Biome format --write
+npm run build    # Next.js production build
+```
+
+### Route map
+
+| Route | Surface | Notes |
+|-------|---------|-------|
+| `/` | Root | App entry |
+| `/patient` | Patient | Landing + intake flow |
+| `/provider` | Provider | Kanban queue + case detail panel |
+| `GET /api/case` | API | All cases (open by default) |
+| `GET /api/case/[id]` | API | Single case |
+| `POST /api/intake` | API | Patient submits; classify → insert → return |
+| `POST /api/case/[id]/packet` | API | Trigger AI decision packet (or mock) |
+| `POST /api/case/[id]/close` | API | Provider closes case |
+| `POST /api/init_patient` | API | Initialize a patient session |
+
+### Key source files
+
+- `src/state.ts` — in-memory `Map<string, Case>` store (no DB; resets on restart)
+- `src/gemini.ts` — Gemini 2.5 Flash integration + deterministic fallback
+- `src/lib/types.ts` — shared `Case`, `CaseType`, `Lane` types
+- `.env.local` — `GEMINI_API_KEY` + `USE_AI` flag (default `false` → mock packets)
 
 ## The challenge being built
 

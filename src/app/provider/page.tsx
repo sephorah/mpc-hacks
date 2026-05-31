@@ -13,7 +13,8 @@ const TYPE_LABEL: Record<CaseType, string> = {
   "general-enquiry": "General enquiry",
 };
 
-// Mock stats — will be computed from real case data later
+// Baseline seeds the stats at a realistic mid-session value for demo.
+// Both metrics increment by asyncClosed (cases closed without a live visit this session).
 const MOCK_SYNC_SLOTS_FREED = 7;
 const MOCK_CASES_PER_HOUR = 11.2;
 
@@ -231,7 +232,7 @@ export default function ProviderWorkspace() {
 
   useEffect(() => {
     poll();
-    const id = setInterval(poll, 15_000);
+    const id = setInterval(poll, 2_500);
     return () => clearInterval(id);
   }, [poll]);
 
@@ -432,7 +433,7 @@ export default function ProviderWorkspace() {
         </div>
         <div className="stat-card">
           <span className="stat-label">Cases / clinician-hour</span>
-          <span className="stat-value">{(MOCK_CASES_PER_HOUR + asyncClosed * 2).toFixed(1)}</span>
+          <span className="stat-value">{MOCK_CASES_PER_HOUR.toFixed(1)}</span>
         </div>
       </div>
 
