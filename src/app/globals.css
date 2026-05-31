@@ -428,6 +428,14 @@ body {
 .provider-workspace .btn-ghost:hover {
   background: var(--accent-soft);
 }
+.provider-workspace .btn-danger {
+  background: transparent;
+  color: var(--sync-fg);
+  border: 1px solid var(--sync-fg);
+}
+.provider-workspace .btn-danger:hover {
+  background: var(--sync-bg);
+}
 
 .provider-workspace .sync-note {
   font-size: 13.5px;
