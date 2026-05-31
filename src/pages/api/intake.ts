@@ -1,6 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getPatientFromReq, getState } from "../../state";
-import { convertFormToCase } from "../../gemini";
 import { type QueueCategory } from "../../queue";
 import type { Case, CaseType, Lane } from "../../types";
 
@@ -68,13 +67,7 @@ export default async function handler(
 
   const formData: IntakeFormData = req.body;
 
-  let caseObj: Case;
-  try {
-    caseObj = await convertFormToCase(formData, patient.id);
-  } catch (error) {
-    console.warn("Gemini unavailable, falling back to rule-based classify:", (error as Error).message);
-    caseObj = ruleBasedClassify(formData, patient.id);
-  }
+  const caseObj = ruleBasedClassify(formData, patient.id);
 
   // async-pending means Gemini wants more info — keep it in the queue for now
   const queueCategory: QueueCategory = caseObj.lane === "needs-sync" ? "sync" : "async";
