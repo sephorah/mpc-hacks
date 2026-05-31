@@ -71,7 +71,8 @@ export async function convertFormToCase(
   const parsed: GeminiResponse = JSON.parse(content);
 
   return {
-    id: `${patientId}-${Date.now()}`,
+    patient_id: patientId,
+    id: crypto.randomUUID(),
     type: parsed.type,
     lane: parsed.lane,
     redFlags: parsed.redFlags,
@@ -115,6 +116,14 @@ Field definitions:
 Low-priority cases such as simple symptoms like coughs or headaches should fall into the async category.
 Cases with considerable nuance that require personal communication to determine the correct course of action should fall into the sync category.
 This includes situations such as mental health enquiries, checkups and follow ups with a provider, and situations where text responses do not remedy the situation.
+
+Async Examples:
+"I need to renew my routine prescription for my Ventolin asthma inhaler. My asthma has been completely stable for the last six months, I haven't had any sudden flare-ups or changes in my breathing, and I'm not experiencing any new side effects. My current pharmacy fax number is already saved on file in my app profile."
+"I recently had my routine fasting blood work done last Tuesday for my annual cholesterol monitoring check, and I see the official lab report PDF has already successfully uploaded to my account here. I just need a provider to review it and let me know if my current Lipitor dose is still working as intended."
+
+Sync Examples:
+"I need a standard renewal on my heart medication, but lately, I've been feeling an uncomfortable tightness and heavy pressure in my chest. It started a couple of days ago and it's making me a bit short of breath even when I'm just sitting on the couch trying to relax."
+"I'm looking to review my recent blood tests regarding my chronic fatigue, but I also really need a full checkup session with my provider. My anxiety and overall mental health have been declining severely alongside my physical energy over the past month, and text messages aren't going to cut it for this conversation."
 
 Respond with ONLY the JSON object, nothing else.`;
 }

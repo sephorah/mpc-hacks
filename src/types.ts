@@ -7,6 +7,7 @@ export type Lane =
   | 'async-ready';   // closeable async, nothing missing → close
 
 export type Case = {
+  patient_id: string | null;
   id: string;
   type: CaseType;
   lane: Lane;
