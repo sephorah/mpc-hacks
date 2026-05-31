@@ -2,10 +2,10 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { getPatientFromReq, getState } from "../../state";
 import { convertFormToCase } from "../../gemini";
 import { type QueueCategory } from "../../queue";
+import type { Case, CaseType, Lane } from "../../types";
 
 interface IntakeFormData extends Record<string, string> {
-  // TODO: Define form fields as they're added
-  whatswrong: string
+  whatswrong: string;
 }
 
 interface ApiResponse {
@@ -14,9 +14,48 @@ interface ApiResponse {
   data?: unknown;
 }
 
+const RED_FLAG_KEYWORDS = [
+  "chest pain", "chest tightness", "shortness of breath", "can't breathe",
+  "heart attack", "stroke", "severe", "emergency", "crushing", "fainting",
+  "unconscious", "bleeding heavily", "suicidal", "self-harm",
+];
+
+const RENEWAL_KEYWORDS = ["renew", "renewal", "refill", "prescription", "medication", "inhaler", "statin", "pill"];
+const LAB_KEYWORDS = ["lab", "blood test", "results", "bloodwork", "test results", "lab report"];
+const CHRONIC_KEYWORDS = ["check-in", "checkup", "check up", "chronic", "follow-up", "followup", "monitoring"];
+
+function ruleBasedClassify(formData: IntakeFormData, patientId: string): Case {
+  const text = (formData.whatswrong ?? "").toLowerCase();
+
+  const redFlags = RED_FLAG_KEYWORDS.some((kw) => text.includes(kw));
+  const lane: Lane = redFlags ? "needs-sync" : "async-ready";
+
+  let type: CaseType = "general-enquiry";
+  if (RENEWAL_KEYWORDS.some((kw) => text.includes(kw))) type = "med-renewal";
+  else if (LAB_KEYWORDS.some((kw) => text.includes(kw))) type = "lab-followup";
+  else if (CHRONIC_KEYWORDS.some((kw) => text.includes(kw))) type = "chronic-condition-check-in";
+
+  return {
+    patient_id: patientId,
+    id: crypto.randomUUID(),
+    type,
+    lane,
+    answers: {},
+    redFlags,
+    missing: null,
+    freeText: formData.whatswrong,
+    packet: null,
+    status: "open",
+    cohortId: null,
+    createdAt: Date.now(),
+    closedAt: null,
+    escalatedAt: null,
+  };
+}
+
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse<ApiResponse>
+  res: NextApiResponse<ApiResponse>,
 ) {
   if (req.method !== "POST") {
     return res.status(405).json({ success: false, message: "Method not allowed" });
@@ -29,46 +68,28 @@ export default async function handler(
 
   const formData: IntakeFormData = req.body;
 
+  let caseObj: Case;
   try {
-    // Convert form data to structured case object using Gemini
-    const caseObj = await convertFormToCase(formData, patient.id);
-
-    // Missing info, send back to user
-    if (caseObj.lane == 'async-pending') {
-        res.status(400).json(
-            {
-                success: false,
-                message: "Async case is missing required information. Please revise and try again",
-                data: {
-                    missing: caseObj.missing
-                }
-            }
-        );
-        return;
-    }
-
-    // Determine queue category based on case lane
-    const queueCategory: QueueCategory = caseObj.lane === "needs-sync" ? "sync" : "async";
-
-    // Store in both the cases map and the queue
-    getState().cases.set(caseObj.id, caseObj);
-    getState().queue.enqueue(caseObj, queueCategory);
-
-    return res.status(200).json({
-      success: true,
-      message: "Form submitted successfully",
-      data: {
-        patientId: patient.id,
-        caseId: caseObj.id,
-        lane: caseObj.lane,
-        queue: queueCategory,
-      },
-    });
+    caseObj = await convertFormToCase(formData, patient.id);
   } catch (error) {
-    console.error("Error processing intake form:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Error processing form submission",
-    });
+    console.warn("Gemini unavailable, falling back to rule-based classify:", (error as Error).message);
+    caseObj = ruleBasedClassify(formData, patient.id);
   }
+
+  // async-pending means Gemini wants more info — keep it in the queue for now
+  const queueCategory: QueueCategory = caseObj.lane === "needs-sync" ? "sync" : "async";
+
+  getState().cases.set(caseObj.id, caseObj);
+  getState().queue.enqueue(caseObj, queueCategory);
+
+  return res.status(200).json({
+    success: true,
+    message: "Form submitted successfully",
+    data: {
+      patientId: patient.id,
+      caseId: caseObj.id,
+      lane: caseObj.lane,
+      queue: queueCategory,
+    },
+  });
 }
