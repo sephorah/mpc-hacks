@@ -1,19 +1,14 @@
 import { getState } from "@/state";
 import type { NextApiRequest, NextApiResponse } from "next";
 
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse
-) {
-    const { id } = req.query;
+export default function handler(req: NextApiRequest, res: NextApiResponse) {
+  const { id } = req.query;
+  const caseObj = getState().cases.get(String(id));
 
-    const item = getState().queue.get(String(id));
+  if (!caseObj) {
+    res.status(404).json({ success: false, message: "Case not found" });
+    return;
+  }
 
-    if (!item) {
-        res.status(404).json({ success: false, message: "Case not found" });
-        return;
-    }
-
-    const caseObj = item.caseObj;
-    res.status(200).json({ success: true, data: caseObj });
+  res.status(200).json({ success: true, data: caseObj });
 }

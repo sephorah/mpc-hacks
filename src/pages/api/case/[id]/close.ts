@@ -1,30 +1,29 @@
 import { getState } from "@/state";
 import type { NextApiRequest, NextApiResponse } from "next";
 
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse
-) {
-    
-    if (req.method !== "POST") {
-        res.status(405).json({ success: false, message: "Method not allowed" });
-        return;
-    }
-    
-    const { id } = req.query;
-    const item = getState().queue.get(String(id));
+export default function handler(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method !== "POST") {
+    res.status(405).json({ success: false, message: "Method not allowed" });
+    return;
+  }
 
-    if (!item) {
-        res.status(404).json({ success: false, message: "Case not found" });
-        return;
-    }
+  const { id } = req.query;
+  const caseObj = getState().cases.get(String(id));
 
-    const caseObj = item.caseObj;
+  if (!caseObj) {
+    res.status(404).json({ success: false, message: "Case not found" });
+    return;
+  }
 
-    // Async case closed; send attestation response to user
-    if (caseObj.lane == 'async-ready') {
-        const attestation = req.body.attestation;
-    }
+  if (caseObj.lane === "needs-sync") {
+    res
+      .status(400)
+      .json({ success: false, message: "needs-sync cases cannot close async" });
+    return;
+  }
 
-    res.status(200).json({ success: true, data: caseObj });
+  caseObj.status = "closed";
+  caseObj.closedAt = Date.now();
+
+  res.status(200).json({ success: true, data: caseObj });
 }

@@ -84,6 +84,39 @@ export async function convertFormToCase(
   };
 }
 
+export async function generatePacket(caseObj: Case): Promise<string> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error("GEMINI_API_KEY is not set");
+
+  const ai = new GoogleGenAI({ apiKey });
+  const prompt = `You are a clinical decision-support assistant. Generate a structured decision packet for a care provider reviewing this case.
+
+Case type: ${caseObj.type}
+Patient summary: ${caseObj.freeText}
+Red flags: ${caseObj.redFlags}
+Lane: ${caseObj.lane}
+
+Respond with a concise packet (≤150 words) covering:
+1. Chief complaint
+2. Suggested action
+3. Flag level (green / yellow / red)
+
+Write in plain prose, no markdown. Clinician-facing tone.`;
+
+  const response = await ai.models.generateContentStream({
+    model: "gemini-2.0-flash",
+    contents: [{ role: "user", parts: [{ text: prompt }] }],
+  });
+
+  let content = "";
+  for await (const chunk of response) {
+    if (chunk.text) content += chunk.text;
+  }
+
+  if (!content) throw new Error("No content from Gemini");
+  return content.trim();
+}
+
 function buildPrompt(formData: Record<string, string>): string {
   const formDataStr = JSON.stringify(formData, null, 2);
 

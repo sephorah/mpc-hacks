@@ -50,7 +50,8 @@ export default async function handler(
     // Determine queue category based on case lane
     const queueCategory: QueueCategory = caseObj.lane === "needs-sync" ? "sync" : "async";
 
-    // Enqueue the case
+    // Store in both the cases map and the queue
+    getState().cases.set(caseObj.id, caseObj);
     getState().queue.enqueue(caseObj, queueCategory);
 
     return res.status(200).json({

@@ -44,6 +44,7 @@ const PACKETS: Record<string, string> = {
   "c-2b91":
     "Stable on atorvastatin, no reported side effects, home BP readings normal. Straightforward renewal — no labs outstanding, no red flags.",
 };
+// PACKETS is used as a local fallback for seed cases not stored server-side
 
 const PACKET_FALLBACK = "Summary unavailable — using canned fallback.";
 const ATTEST_CLINICIAN = "Dr. A. Moreau, MD · #QC-88421";
@@ -163,9 +164,10 @@ export default function ProviderWorkspace() {
   useEffect(() => {
     async function poll() {
       try {
-        const res = await fetch("/api/cases");
+        const res = await fetch("/api/case");
         if (res.ok) {
-          const data: Case[] = await res.json();
+          const json = await res.json();
+          const data: Case[] = json.data ?? [];
           setCases((prev) => {
             const inactiveIds = new Set(
               prev
@@ -174,7 +176,7 @@ export default function ProviderWorkspace() {
                 )
                 .map((c) => c.id),
             );
-            return data.map((c) =>
+            const merged = data.map((c) =>
               inactiveIds.has(c.id)
                 ? {
                     ...c,
@@ -182,10 +184,14 @@ export default function ProviderWorkspace() {
                   }
                 : c,
             );
+            // Keep local-only seed cases not yet in the server
+            const serverIds = new Set(data.map((c) => c.id));
+            const localOnly = prev.filter((c) => !serverIds.has(c.id));
+            return [...merged, ...localOnly];
           });
         }
       } catch {
-        // API not built yet — keep current state.
+        // server not up yet — keep current state
       }
     }
     poll();
@@ -201,17 +207,33 @@ export default function ProviderWorkspace() {
 
     setGeneratingId(selectedId);
     const capturedId = selectedId;
-    const t = setTimeout(() => {
-      setCases((prev) =>
-        prev.map((x) =>
-          x.id === capturedId
-            ? { ...x, packet: PACKETS[capturedId] ?? PACKET_FALLBACK }
-            : x,
-        ),
-      );
+    let cancelled = false;
+
+    fetch(`/api/case/${capturedId}/packet`, { method: "POST" })
+      .then((res) => res.json())
+      .then((json) => {
+        if (cancelled) return;
+        const updated: Case = json.data;
+        setCases((prev) =>
+          prev.map((x) => (x.id === capturedId ? { ...x, packet: updated.packet ?? PACKET_FALLBACK } : x)),
+        );
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setCases((prev) =>
+          prev.map((x) =>
+            x.id === capturedId ? { ...x, packet: PACKETS[capturedId] ?? PACKET_FALLBACK } : x,
+          ),
+        );
+      })
+      .finally(() => {
+        if (!cancelled) setGeneratingId(null);
+      });
+
+    return () => {
+      cancelled = true;
       setGeneratingId(null);
-    }, 1100);
-    return () => clearTimeout(t);
+    };
   }, [selectedId, cases]);
 
   function select(id: string) {
@@ -221,22 +243,30 @@ export default function ProviderWorkspace() {
   function closeCase(id: string) {
     const c = cases.find((x) => x.id === id);
     if (!c || c.lane === "needs-sync") return;
+    // Optimistic update
     setCases((prev) =>
       prev.map((x) =>
         x.id === id ? { ...x, status: "closed", closedAt: Date.now() } : x,
       ),
     );
+    fetch(`/api/case/${id}/close`, { method: "POST" }).catch(() => {
+      // Server not up yet — local close stands for the demo
+    });
   }
 
   function batchClose(ids: string[]) {
+    const closedAt = Date.now();
     setCases((prev) =>
       prev.map((c) =>
         ids.includes(c.id) && c.lane !== "needs-sync"
-          ? { ...c, status: "closed" as const, closedAt: Date.now() }
+          ? { ...c, status: "closed" as const, closedAt }
           : c,
       ),
     );
     setSelectedId(null);
+    for (const id of ids) {
+      fetch(`/api/case/${id}/close`, { method: "POST" }).catch(() => {});
+    }
   }
 
   function requestInfo(id: string, message: string) {
