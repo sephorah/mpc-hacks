@@ -112,14 +112,50 @@ function Badge({ lane, inline = false }: { lane: Lane; inline?: boolean }) {
   );
 }
 
+function QueueCard({
+  c,
+  isSelected,
+  isArriving,
+  cohortSize,
+  onClick,
+}: {
+  c: Case;
+  isSelected: boolean;
+  isArriving: boolean;
+  cohortSize: number | null;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={isSelected}
+      className={`case ${isSelected ? "active" : ""} ${isArriving ? "arriving" : ""}`}
+      onClick={onClick}
+    >
+      <div className="row1">
+        <span className="type">{TYPE_LABEL[c.type]}</span>
+        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          {cohortSize !== null && cohortSize > 1 && (
+            <span className="cohort-badge">{cohortSize} similar</span>
+          )}
+          <Badge lane={c.lane} />
+        </div>
+      </div>
+      <div className="row2">
+        <span className="subtitle">{laneSubtitle(c)}</span>
+      </div>
+    </button>
+  );
+}
+
 export default function ProviderWorkspace() {
   const seed = useMemo(makeSeed, []);
   const [cases, setCases] = useState<Case[]>(seed);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [generatingId, setGeneratingId] = useState<string | null>(null);
   const [arriving, setArriving] = useState<Set<string>>(new Set());
+  const [readyOnly, setReadyOnly] = useState(false);
 
-  // Poll real API once it exists; preserve locally-closed/escalated cases on merge.
   useEffect(() => {
     async function poll() {
       try {
@@ -153,7 +189,6 @@ export default function ProviderWorkspace() {
     return () => clearInterval(id);
   }, []);
 
-  // Simulate the one live LLM call when an async case is first opened.
   useEffect(() => {
     if (!selectedId) return;
     const c = cases.find((x) => x.id === selectedId);
@@ -187,6 +222,17 @@ export default function ProviderWorkspace() {
         x.id === id ? { ...x, status: "closed", closedAt: Date.now() } : x,
       ),
     );
+  }
+
+  function batchClose(ids: string[]) {
+    setCases((prev) =>
+      prev.map((c) =>
+        ids.includes(c.id) && c.lane !== "needs-sync"
+          ? { ...c, status: "closed" as const, closedAt: Date.now() }
+          : c,
+      ),
+    );
+    setSelectedId(null);
   }
 
   function requestInfo(id: string, message: string) {
@@ -262,7 +308,36 @@ export default function ProviderWorkspace() {
   }
 
   const open = cases.filter((c) => c.status === "open");
+  const displayed = readyOnly
+    ? open.filter((c) => c.lane === "async-ready")
+    : open;
+
+  // Group into clusters (cohortId shared by ≥2 displayed cases) and singletons
+  const cohortMap = new Map<string, Case[]>();
+  for (const c of displayed) {
+    if (c.cohortId) {
+      const group = cohortMap.get(c.cohortId) ?? [];
+      group.push(c);
+      cohortMap.set(c.cohortId, group);
+    }
+  }
+  const clusters = [...cohortMap.entries()]
+    .filter(([, cs]) => cs.length >= 2)
+    .map(([cohortId, cs]) => ({ cohortId, cases: cs }));
+  const clusteredIds = new Set(
+    clusters.flatMap((cl) => cl.cases.map((c) => c.id)),
+  );
+  const singletons = displayed.filter((c) => !clusteredIds.has(c.id));
+
   const selected = cases.find((c) => c.id === selectedId) ?? null;
+  const cohortReady = selected?.cohortId
+    ? cases.filter(
+        (c) =>
+          c.cohortId === selected.cohortId &&
+          c.status === "open" &&
+          c.lane === "async-ready",
+      )
+    : [];
 
   return (
     <>
@@ -299,25 +374,50 @@ export default function ProviderWorkspace() {
             </span>
             <span className="count">{open.length} open</span>
           </div>
+
+          <div className="queue-filters">
+            <button
+              type="button"
+              className={`btn-filter ${readyOnly ? "active" : ""}`}
+              onClick={() => setReadyOnly((v) => !v)}
+            >
+              Ready only
+            </button>
+          </div>
+
           <div>
-            {open.map((c) => (
-              <button
-                type="button"
+            {clusters.map((cluster) => (
+              <div key={cluster.cohortId} className="cluster">
+                <div className="cluster-header">
+                  <span className="cluster-count">
+                    {cluster.cases.length} similar
+                  </span>
+                  <span className="cluster-type">
+                    {" "}
+                    · {TYPE_LABEL[cluster.cases[0].type]}
+                  </span>
+                </div>
+                {cluster.cases.map((c) => (
+                  <QueueCard
+                    key={c.id}
+                    c={c}
+                    isSelected={c.id === selectedId}
+                    isArriving={arriving.has(c.id)}
+                    cohortSize={cluster.cases.length}
+                    onClick={() => select(c.id)}
+                  />
+                ))}
+              </div>
+            ))}
+            {singletons.map((c) => (
+              <QueueCard
                 key={c.id}
-                aria-pressed={c.id === selectedId}
-                className={`case ${c.id === selectedId ? "active" : ""} ${
-                  arriving.has(c.id) ? "arriving" : ""
-                }`}
+                c={c}
+                isSelected={c.id === selectedId}
+                isArriving={arriving.has(c.id)}
+                cohortSize={null}
                 onClick={() => select(c.id)}
-              >
-                <div className="row1">
-                  <span className="type">{TYPE_LABEL[c.type]}</span>
-                  <Badge lane={c.lane} />
-                </div>
-                <div className="row2">
-                  <span className="subtitle">{laneSubtitle(c)}</span>
-                </div>
-              </button>
+              />
             ))}
           </div>
         </aside>
@@ -330,7 +430,9 @@ export default function ProviderWorkspace() {
               key={selected.id}
               c={selected}
               generating={generatingId === selected.id}
+              cohortReady={cohortReady}
               onClose={() => closeCase(selected.id)}
+              onBatchClose={batchClose}
               onRequestInfo={(msg) => requestInfo(selected.id, msg)}
               onEscalate={() => escalateCase(selected.id)}
             />
@@ -473,19 +575,24 @@ function ActionButtons({
 function CaseDetail({
   c,
   generating,
+  cohortReady,
   onClose,
+  onBatchClose,
   onRequestInfo,
   onEscalate,
 }: {
   c: Case;
   generating: boolean;
+  cohortReady: Case[];
   onClose: () => void;
+  onBatchClose: (ids: string[]) => void;
   onRequestInfo: (message: string) => void;
   onEscalate: () => void;
 }) {
   const [showRequestForm, setShowRequestForm] = useState(false);
   const [requestMsg, setRequestMsg] = useState("");
   const [showEscalateConfirm, setShowEscalateConfirm] = useState(false);
+  const [showBatchConfirm, setShowBatchConfirm] = useState(false);
   const [attestName, setAttestName] = useState(ATTEST_CLINICIAN);
 
   return (
@@ -560,7 +667,7 @@ function CaseDetail({
                 <line x1="16" y1="17" x2="8" y2="17" />
                 <polyline points="10 9 9 9 8 9" />
               </svg>
-              Decision packet · <span className="ai-tag">AI GENERATED</span>
+              Decision packet · <span className="ai-tag">LLM</span>
             </h3>
             <div className="packet">
               {generating || !c.packet ? (
@@ -631,7 +738,48 @@ function CaseDetail({
                 >
                   ✓ Attest &amp; close
                 </button>
+                {cohortReady.length >= 2 && !showBatchConfirm && (
+                  <button
+                    type="button"
+                    className="btn-batch"
+                    disabled={!attestName.trim()}
+                    onClick={() => setShowBatchConfirm(true)}
+                  >
+                    Close all {cohortReady.length} similar
+                  </button>
+                )}
               </div>
+
+              {showBatchConfirm && (
+                <div className="batch-confirm">
+                  <div style={{ fontWeight: 600, marginBottom: 6 }}>
+                    Close {cohortReady.length} cases async?
+                  </div>
+                  <div className="batch-ids">
+                    {cohortReady.map((x) => x.id).join(" · ")}
+                  </div>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button
+                      type="button"
+                      className="btn-close"
+                      onClick={() => {
+                        onBatchClose(cohortReady.map((x) => x.id));
+                        setShowBatchConfirm(false);
+                      }}
+                    >
+                      Confirm
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-ghost"
+                      onClick={() => setShowBatchConfirm(false)}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <ActionButtons
                 showRequestForm={showRequestForm}
                 setShowRequestForm={setShowRequestForm}

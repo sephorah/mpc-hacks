@@ -631,3 +631,103 @@ body {
   border-color: var(--accent);
   box-shadow: 0 0 0 1px var(--accent);
 }
+
+/* QUEUE FILTERS */
+.provider-workspace .queue-filters {
+  padding: 4px 12px 10px;
+  display: flex;
+  gap: 6px;
+}
+.provider-workspace .btn-filter {
+  font-family: var(--font-plex-sans), "IBM Plex Sans", sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+.provider-workspace .btn-filter.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+/* COHORT CLUSTER */
+.provider-workspace .cluster {
+  margin: 0 12px 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  overflow: hidden;
+}
+.provider-workspace .cluster-header {
+  padding: 8px 16px;
+  background: var(--accent-soft);
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+  font-weight: 600;
+}
+.provider-workspace .cluster-count {
+  color: var(--accent);
+}
+.provider-workspace .cluster-type {
+  color: var(--ink-faint);
+}
+.provider-workspace .cluster .case {
+  width: 100%;
+  margin: 0;
+  border-radius: 0;
+  border: none;
+  border-bottom: 1px solid var(--line);
+  box-shadow: none;
+}
+.provider-workspace .cluster .case:last-child {
+  border-bottom: none;
+}
+.provider-workspace .cluster .case.active {
+  background: var(--accent-soft);
+  box-shadow: none;
+}
+
+/* COHORT BADGE on queue card */
+.provider-workspace .cohort-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+/* BATCH CLOSE */
+.provider-workspace .btn-batch {
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  white-space: nowrap;
+}
+.provider-workspace .btn-batch:hover:not(:disabled) {
+  background: var(--accent-soft);
+}
+.provider-workspace .btn-batch:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.provider-workspace .batch-confirm {
+  background: var(--accent-soft);
+  border: 1px solid rgba(11, 107, 95, 0.25);
+  border-radius: 10px;
+  padding: 14px 16px;
+  font-size: 13px;
+  margin-top: 2px;
+}
+.provider-workspace .batch-ids {
+  font-family: var(--font-plex-mono), monospace;
+  font-size: 11px;
+  color: var(--ink-soft);
+  margin: 4px 0 12px;
+}
