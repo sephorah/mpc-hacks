@@ -49,6 +49,10 @@ If none of the above conditions match → `async-ready`.
 | `async-pending` | Missing info before provider can act | No (blocked) |
 | `async-ready` | All info present, ready to review | Yes |
 
+## Cohort
+
+Every case receives a `cohortId = "cohort-<type>"` at intake (general-enquiry gets `null`). The provider queue groups cases sharing the same `cohortId` — minimum 2, `needs-sync` excluded — into a visual cluster. Opening any case in a cluster surfaces a **"Close all N similar"** button that batch-closes the whole group in one attestation.
+
 ## AI role
 
 Classification is intentionally AI-free. Gemini is only called later, when a provider opens the case, to generate the **decision packet** — a ≤150-word clinical summary the provider reads before attesting. AI summarises; it never decides.
