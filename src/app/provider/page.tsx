@@ -7,6 +7,7 @@ const TYPE_LABEL: Record<CaseType, string> = {
   "med-renewal": "Renewal",
   "lab-followup": "Lab follow-up",
   "chronic-condition-check-in": "Chronic check-in",
+  "general-enquiry": "General enquiry",
 };
 
 // Mock stats — will be computed from real case data later
@@ -51,6 +52,7 @@ function makeSeed(): Case[] {
   const min = (n: number) => Date.now() - n * 60_000;
   return [
     {
+      patient_id: null,
       id: "c-7f3a",
       type: "lab-followup",
       lane: "async-pending",
@@ -67,6 +69,7 @@ function makeSeed(): Case[] {
       escalatedAt: null,
     },
     {
+      patient_id: null,
       id: "c-2b91",
       type: "med-renewal",
       lane: "async-ready",
@@ -82,6 +85,7 @@ function makeSeed(): Case[] {
       escalatedAt: null,
     },
     {
+      patient_id: null,
       id: "c-d04e",
       type: "med-renewal",
       lane: "needs-sync",
@@ -274,6 +278,7 @@ export default function ProviderWorkspace() {
   function simArrival() {
     const id = `c-${Math.random().toString(16).slice(2, 6)}`;
     const c: Case = {
+      patient_id: null,
       id,
       type: "med-renewal",
       lane: "async-ready",
